@@ -1,0 +1,78 @@
+# Thorlabs_controllers
+
+Low-level Python modules to send commands to Thorlabs motion controllers.
+
+## Currently Supported Models
+- FW102C - fw102c.py
+- PPC102 - ppc102.py
+
+## Features
+- Connect to Thorlabs controllers over serial through a terminal server
+- Query state and parameters
+- Move individual axes to absolute or relative positions
+
+## Usage
+
+### FW102C Example
+```python
+from hispec.util import fw102c
+
+controller = fw102c.FilterWheelController()
+controller.set_connection(ip='192.168.29.100', port=10010)
+controller.connect()
+
+# Print filter wheel current position
+print(controller.get_position())
+
+# Move filter wheel to filter 5
+controller.move(5)
+
+# For a comprehensive list of classes and methods, use the help function
+help(fw102c)
+
+```
+
+### PPC102 Example
+```python
+    from hispec.util.thorlabs.gimbal.PPC102_lib import PPC102_Coms, DATA_CODES
+
+    # log = false will now print to command line
+    dev =  PPC102_Coms("BlueGimbalMount.ini",log=False)
+
+    #Open connection
+    dev.open()
+
+    # set voltage on channel 1 and get result (open loop control)
+    dev.set_output_volts(channel=1,volts=100)
+    res = dev.get_output_volts(channel=1)
+
+    # switch channels to closed loop
+    dev.set_loop(channel=1,loop=2)
+    dev.set_loop(channel=2,loop=2)
+
+    # set positions on channel 1 or 2 and get result
+    dev.set_position(channel=1,pos=100)
+    dev.set_position(channel=2,pos=100)
+    cur_pos1 = dev.get_position(channel=1)
+    cur_pos2 = dev.get_position(channel=2)
+
+    # switch channels to open loop
+    dev.set_loop(channel=1,loop=1)
+    dev.set_loop(channel=2,loop=1)
+
+    #Set voltages to zero
+    dev.set_output_volts(channel=1,volts=0)
+    dev.set_output_volts(channel=2,volts=0)
+
+    # close socket connection
+    dev.close()
+```
+
+## 🧪 Testing
+Unit tests are located in `tests/` directory.
+
+To run all tests from the project root:
+
+```bash
+pytest
+```
