@@ -51,8 +51,8 @@ help(fw102c)
     dev.set_loop(channel=2,loop=2)
 
     # set positions on channel 1 or 2 and get result
-    dev.set_position(channel=1,pos=100)
-    dev.set_position(channel=2,pos=100)
+    dev.set_position(channel=1,pos=5.0)
+    dev.set_position(channel=2,pos=-5.0)
     cur_pos1 = dev.get_position(channel=1)
     cur_pos2 = dev.get_position(channel=2)
 
