@@ -47,10 +47,10 @@ class PPC102_Coms(object):
 
     #TODO:: Re-test with these constants
     #Class Constants
-    OPEN_LOOP = 1
-    CLOSED_LOOP = 2
-    CHAN_ENABLED = 1
-    CHAN_DISABLED = 2
+    self.OPEN_LOOP = 1
+    self.CLOSED_LOOP = 2
+    self.CHAN_ENABLED = 1
+    self.CHAN_DISABLED = 2
 
     def __init__(self, IP: str, port: int, timeout: float= 2.0, 
                                                             log: bool = True):
