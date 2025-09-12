@@ -45,13 +45,6 @@ class PPC102_Coms(object):
         - The output of the device depends solely on the 'enable' bit
     '''
 
-    #TODO:: Re-test with these constants
-    #Class Constants
-    self.OPEN_LOOP = 1
-    self.CLOSED_LOOP = 2
-    self.CHAN_ENABLED = 1
-    self.CHAN_DISABLED = 2
-
     def __init__(self, IP: str, port: int, timeout: float= 2.0, 
                                                             log: bool = True):
         '''
@@ -91,6 +84,11 @@ class PPC102_Coms(object):
         # Other Instance Variables
         self.sock = None
         self.DELAY = .1  # Number of seconds to wait after writing a message
+        #Class Constants
+        self.OPEN_LOOP = 1
+        self.CLOSED_LOOP = 2
+        self.CHAN_ENABLED = 1
+        self.CHAN_DISABLED = 2
 
     ########### Socket Communitcations ###########
     def open(self):
