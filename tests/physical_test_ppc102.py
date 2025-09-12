@@ -1,0 +1,150 @@
+#################
+#Outline Robust and Communication Tests
+#################
+
+
+import pytest
+import sys
+import os
+import unittest
+import time 
+
+##########################
+## CONFIG
+## connection and Disconnection in all test
+##########################
+class Physical_Test(unittest.TestCase):
+
+    #Instances for Test management
+    def setUp(self):
+        self.dev = None
+        self.success = True
+        self.IP = ''
+        self.port = 10013
+        self.log = False
+        self.error_tolerance = 0.1
+
+
+    ##########################
+    ## Servos / Loops [ Not really applicable]
+    ##########################
+    def test_loop(self):
+        time.sleep(.2)
+        try:
+            # Open connection     
+            self.dev = PPC102_Coms(IP=self.IP, port = self.port,log = self.log)
+            time.sleep(.2)
+            self.dev.open()
+            time.sleep(.25)
+            for ch in [1,2]:#Check for channels that are applicable
+                #Close Loop assert Loop states
+                ret = self.dev.get_loop(channel=ch)
+                assert ret == DATA_CODES.OPEN_LOOP or ret == DATA_CODES.CLOSED_LOOP
+                assert self.dev.set_loop(channel=ch, loop=2)
+                ret = self.dev.get_loop(channel=ch)
+                assert ret == DATA_CODES.CLOSED_LOOP
+                #Open Loops and assert the states
+                assert self.dev.set_loop(channel=ch, loop=1)
+                ret = self.dev.get_loop(channel=ch)
+                assert ret == DATA_CODES.OPEN_LOOP
+            self.assertFalse(self.dev.set_loop(channel=5))
+            self.assertFalse(self.dev.set_loop(channel=-1))
+            self.assertTrue(self.dev.set_loop(loop = 4))
+            ret = self.dev.get_loop(channel = 0)
+            assert ret[0] == DATA_CODES.CLOSED_LOOP
+            assert ret[1] == DATA_CODES.CLOSED_LOOP
+            self.assertTrue(self.dev.set_loop(loop = 1))
+            ret = self.dev.get_loop(channel = 0)
+            assert ret[0] == DATA_CODES.OPEN_LOOP
+            assert ret[1] == DATA_CODES.OPEN_LOOP
+            self.dev.close()
+            time.sleep(.25)
+            with self.assertRaises(Exception):
+                self.dev.get_loop()
+                self.dev.set_loop()
+            time.sleep(.25)
+        #Exception Handling
+        except Exception as e:
+            self.fail(f"Failed to test loop: {e}")
+            self.dev.close()
+            self.success = False
+
+
+    ##########################
+    ## Limit Check
+    ##########################
+    def test_limit(self):
+         # Open connection     
+        self.dev = PPC102_Coms(IP=self.IP, port = self.port,log = self.log)
+        time.sleep(.2)
+        self.dev.open()
+        time.sleep(.25)
+        for ch in [1,2]:  # Check for channels that are applicable
+            # Check limit states and save to variable
+            original_limit = self.dev.get_max_output_voltage(channel=ch)
+            print(f"Channel {ch} Max output Voltage: {original_limit}")
+            # Set limit states and assert
+            assert self.dev.set_max_output_voltage(channel=ch, limit=75)
+            ret = self.dev.get_max_output_voltage(channel=ch)
+            print(f"New Channel {ch} Max output Voltage: {ret}")
+            # set limits back to default
+            assert self.dev.set_max_output_voltage(channel=ch, limit=original_limit)
+            ret = self.dev.get_max_output_voltage(channel=ch)
+            print(f"Back to Original Channel {ch} Max output Voltage: {ret}")
+
+        #Exception Handling
+            except Exception as e:
+                self.fail(f"Failed to test loop: {e}")
+                self.dev.close()
+                self.success = False
+            #Close connection
+        self.dev.close()
+        time.sleep(.25)
+
+    ##########################
+    ## Position Query and Movement
+    ##########################
+    def test_position_query_and_movement(self):
+        self.dev = #Controller/Library for the device
+        self.dev.open()
+        time.sleep(.25)
+        for ch in [1,2]:  # Check for channels that are applicable
+            # Close loops and assert
+            ret = self.dev.get_loop(channel=ch)
+            assert ret == DATA_CODES.OPEN_LOOP or ret == DATA_CODES.CLOSED_LOOP
+            assert self.dev.set_loop(channel=ch, loop=Data_CODES.CLOSED_LOOP)
+            ret = self.dev.get_loop(channel=ch)
+            assert ret == DATA_CODES.CLOSED_LOOP
+            # Set position and assert
+            assert self.dev.set_position(channel=ch, position=0)
+            time.sleep(.2)
+            # Get position and assert
+            ret = self.dev.get_position(channel=ch)
+            assert abs(ret - 0) < self.error_tolerance*2
+            original_position = ret
+            print(f"Channel {ch} Original Position: {original_position}")
+            # Set position and assert with Error Tolerance x2
+            assert self.dev.set_position(channel=ch, position=5.0)
+            time.sleep(.2)
+            ret = self.dev.get_position(channel=ch)
+            assert abs(ret - 5.0) < self.error_tolerance*2
+            print(f"Channel {ch} New Position: {ret}")
+            # Set position back to default
+            assert self.dev.set_position(channel=ch, position=original_position)
+            time.sleep(.2)
+            ret = self.dev.get_position(channel=ch)
+            assert abs(ret - original_position) < self.error_tolerance*2
+            print(f"Channel {ch} Back to Original Position: {ret}")
+            #open loops and assert
+            assert self.dev.set_loop(channel=ch, loop=Data_CODES.OPEN_LOOP)
+            ret = self.dev.get_loop(channel=ch)
+            assert ret == DATA_CODES.OPEN_LOOP
+
+        #Exception Handling
+            except Exception as e:
+                self.fail(f"Failed to test loop: {e}")
+                self.dev.close()
+                self.success = False
+            #Close connection
+        self.dev.close()
+        time.sleep(.25)
