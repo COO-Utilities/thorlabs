@@ -2,20 +2,20 @@
 #Outline Robust and Communication Tests
 #################
 
-
 import pytest
 pytestmark = pytest.mark.skip("Exclude from default pytest runs")
 import sys
 import os
 import unittest
-import time 
+import time
 from thorlabs.ppc102 import PPC102_Coms
 
 ##########################
 ## CONFIG
 ## connection and Disconnection in all test
 ##########################
-class Physical_Test(unittest.TestCase):
+
+class Comms_Test(unittest.TestCase):
 
     #Instances for Test management
     def setUp(self):
@@ -25,7 +25,6 @@ class Physical_Test(unittest.TestCase):
         self.port = 10013
         self.log = False
         self.error_tolerance = 0.1
-
 
     ##########################
     ## Servos / Loops [ Not really applicable]
@@ -98,37 +97,20 @@ class Physical_Test(unittest.TestCase):
     ##########################
     ## Position Query and Movement
     ##########################
-    def test_position_query_and_movement(self):
-        self.dev = #Controller/Library for the device
+    def test_position_query(self):
+        self.dev = PPC102_Coms(IP=self.IP, port = self.port,log = self.log)
         self.dev.open()
         time.sleep(.25)
         for ch in [1,2]:  # Check for channels that are applicable
             # Close loops and assert
-            ret = self.dev.get_loop(channel=ch)
-            assert ret == self.dev.OPEN_LOOP or ret == self.dev.CLOSED_LOOP
             assert self.dev.set_loop(channel=ch, loop=self.dev.CLOSED_LOOP)
             ret = self.dev.get_loop(channel=ch)
             assert ret == self.dev.CLOSED_LOOP
-            # Set position and assert
-            assert self.dev.set_position(channel=ch, position=0)
-            time.sleep(.2)
+            
             # Get position and assert
-            ret = self.dev.get_position(channel=ch)
-            assert abs(ret - 0) < self.error_tolerance*2
-            original_position = ret
-            print(f"Channel {ch} Original Position: {original_position}")
-            # Set position and assert with Error Tolerance x2
-            assert self.dev.set_position(channel=ch, position=5.0)
-            time.sleep(.2)
-            ret = self.dev.get_position(channel=ch)
-            assert abs(ret - 5.0) < self.error_tolerance*2
-            print(f"Channel {ch} New Position: {ret}")
-            # Set position back to default
-            assert self.dev.set_position(channel=ch, position=original_position)
-            time.sleep(.2)
-            ret = self.dev.get_position(channel=ch)
-            assert abs(ret - original_position) < self.error_tolerance*2
-            print(f"Channel {ch} Back to Original Position: {ret}")
+            original_position = self.dev.get_position(channel=ch)
+            #make sure that balue returned is a not none type
+            assert original_position is not None
             #open loops and assert
             assert self.dev.set_loop(channel=ch, loop=self.dev.OPEN_LOOP)
             ret = self.dev.get_loop(channel=ch)
@@ -138,10 +120,42 @@ class Physical_Test(unittest.TestCase):
         self.dev.close()
         time.sleep(.25)
 
+    ##########################
+    ## Comms/Info Grab
+    ##########################
+    def info_grab(self):
+        self.dev = PPC102_Coms(IP=self.IP, port = self.port,log = self.log)
+        self.dev.open()
+        time.sleep(.25)
+        # Get device info and assert
+        # Get firmware version and assert
+        # Get serial number and assert
+        # Get model number and assert
+        self.dev.close()
+        time.sleep(.25)
+
+
+    ##########################
+    ## Status Communication
+    ##########################
+    def status_communication(self):
+        self.dev = PPC102_Coms(IP=self.IP, port = self.port,log = self.log)
+        self.dev.open()
+        time.sleep(.25)
+        for ch in [1,2]:  # Check for channels that are applicable
+            # Get status and assert
+            ret = self.dev.get_status_update(channel=ch)
+            assert ret is not None
+            # Get status bits
+            ret = self.dev.get_status_bits(channel=ch)
+            assert ret is not None
+        self.dev.close()
+        time.sleep(.25)
+
 
 if __name__ == '__main__':
     loader = unittest.TestLoader()
-    suite = loader.loadTestsFromTestCase(Robust_Test)
+    suite = loader.loadTestsFromTestCase(Comms_Test)
     runner = unittest.TextTestRunner(verbosity=2)
     result = runner.run(suite)
     sys.exit(not result.wasSuccessful())

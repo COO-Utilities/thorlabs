@@ -45,6 +45,7 @@ class PPC102_Coms(object):
         - The output of the device depends solely on the 'enable' bit
     '''
 
+    #TODO:: Re-test with these constants
     #Class Constants
     OPEN_LOOP = 1
     CLOSED_LOOP = 2
@@ -1035,6 +1036,7 @@ class PPC102_Coms(object):
         # Check if socket is open
         if not self.sock:
             raise RuntimeError("Socket is not connected.")
+            return None
         try:
             # Validate channel
             if channel not in (1, 2):
