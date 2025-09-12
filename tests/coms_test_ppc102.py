@@ -6,7 +6,8 @@ import pytest
 import sys
 import os
 import unittest
-import time 
+import time
+from thorlabs.ppc102 import PPC102_Coms
 
 ##########################
 ## CONFIG
@@ -28,21 +29,40 @@ class Comms_Test(unittest.TestCase):
     ## Servos / Loops [ Not really applicable]
     ##########################
     def test_loop(self):
-        self.dev = #Controller/Library for the device
+        time.sleep(.2)
+        # Open connection     
+        self.dev = PPC102_Coms(IP=self.IP, port = self.port,log = self.log)
         time.sleep(.2)
         self.dev.open()
         time.sleep(.25)
         for ch in [1,2]:#Check for channels that are applicable
             #Close Loop assert Loop states
-
+            ret = self.dev.get_loop(channel=ch)
+            assert ret == self.dev.OPEN_LOOP or ret == self.dev.CLOSED_LOOP
+            assert self.dev.set_loop(channel=ch, loop=2)
+            ret = self.dev.get_loop(channel=ch)
+            assert ret == self.dev.CLOSED_LOOP
             #Open Loops and assert the states
-
-        #Exception Handling
-            except Exception as e:
-                self.fail(f"Failed to test loop: {e}")
-                self.dev.close()
-                self.success = False
-            #Close connection
+            assert self.dev.set_loop(channel=ch, loop=1)
+            ret = self.dev.get_loop(channel=ch)
+            assert ret == self.dev.OPEN_LOOP
+        self.assertFalse(self.dev.set_loop(channel=5))
+        self.assertFalse(self.dev.set_loop(channel=-1))
+        self.assertTrue(self.dev.set_loop(loop = 4))
+        ret = self.dev.get_loop(channel = 0)
+        assert ret[0] == self.dev.CLOSED_LOOP
+        assert ret[1] == self.dev.CLOSED_LOOP
+        self.assertTrue(self.dev.set_loop(loop = 1))
+        ret = self.dev.get_loop(channel = 0)
+        assert ret[0] == self.dev.OPEN_LOOP
+        assert ret[1] == self.dev.OPEN_LOOP
+        self.dev.close()
+        time.sleep(.25)
+        with self.assertRaises(Exception):
+            self.dev.get_loop()
+            self.dev.set_loop()
+        time.sleep(.25)
+        #Close connection
         self.dev.close()
         time.sleep(.25)
 
@@ -51,22 +71,25 @@ class Comms_Test(unittest.TestCase):
     ## Limit Check
     ##########################
     def test_limit(self):
-        self.dev = #Controller/Library for the device
+         # Open connection     
+        self.dev = PPC102_Coms(IP=self.IP, port = self.port,log = self.log)
+        time.sleep(.2)
         self.dev.open()
         time.sleep(.25)
         for ch in [1,2]:  # Check for channels that are applicable
             # Check limit states and save to variable
-            
+            original_limit = self.dev.get_max_output_voltage(channel=ch)
+            print(f"Channel {ch} Max output Voltage: {original_limit}")
             # Set limit states and assert
-
+            assert self.dev.set_max_output_voltage(channel=ch, limit=75)
+            ret = self.dev.get_max_output_voltage(channel=ch)
+            print(f"New Channel {ch} Max output Voltage: {ret}")
             # set limits back to default
+            assert self.dev.set_max_output_voltage(channel=ch, limit=original_limit)
+            ret = self.dev.get_max_output_voltage(channel=ch)
+            print(f"Back to Original Channel {ch} Max output Voltage: {ret}")
 
-        #Exception Handling
-            except Exception as e:
-                self.fail(f"Failed to test loop: {e}")
-                self.dev.close()
-                self.success = False
-            #Close connection
+        #Close connection
         self.dev.close()
         time.sleep(.25)
 
@@ -74,22 +97,25 @@ class Comms_Test(unittest.TestCase):
     ## Position Query and Movement
     ##########################
     def test_position_query(self):
-        self.dev = #Controller/Library for the device
+        self.dev = PPC102_Coms(IP=self.IP, port = self.port,log = self.log)
         self.dev.open()
         time.sleep(.25)
         for ch in [1,2]:  # Check for channels that are applicable
             # Close loops and assert
+            assert self.dev.set_loop(channel=ch, loop=self.dev.CLOSED_LOOP)
+            ret = self.dev.get_loop(channel=ch)
+            assert ret == self.dev.CLOSED_LOOP
             
             # Get position and assert
-
+            original_position = self.dev.get_position(channel=ch)
+            #make sure that balue returned is a not none type
+            assert original_position is not None
             #open loops and assert
+            assert self.dev.set_loop(channel=ch, loop=self.dev.OPEN_LOOP)
+            ret = self.dev.get_loop(channel=ch)
+            assert ret == self.dev.OPEN_LOOP
 
-        #Exception Handling
-            except Exception as e:
-                self.fail(f"Failed to test loop: {e}")
-                self.dev.close()
-                self.success = False
-            #Close connection
+        #Close connection
         self.dev.close()
         time.sleep(.25)
 
@@ -97,7 +123,7 @@ class Comms_Test(unittest.TestCase):
     ## Comms/Info Grab
     ##########################
     def info_grab(self):
-        self.dev = #Controller/Library for the device
+        self.dev = PPC102_Coms(IP=self.IP, port = self.port,log = self.log)
         self.dev.open()
         time.sleep(.25)
         # Get device info and assert
@@ -112,31 +138,23 @@ class Comms_Test(unittest.TestCase):
     ## Status Communication
     ##########################
     def status_communication(self):
-        self.dev = #Controller/Library for the device
+        self.dev = PPC102_Coms(IP=self.IP, port = self.port,log = self.log)
         self.dev.open()
         time.sleep(.25)
-        # Get status and assert
-        # Get error codes and assert
+        for ch in [1,2]:  # Check for channels that are applicable
+            # Get status and assert
+            ret = self.dev.get_status_update(channel=ch)
+            assert ret is not None
+            # Get status bits
+            ret = self.dev.get_status_bits(channel=ch)
+            assert ret is not None
         self.dev.close()
         time.sleep(.25)
 
 
 if __name__ == '__main__':
-    #Determine test, Robust or Comms
-    if 'robust' in sys.argv:
-        test_class = Robust_Test
-    elif 'comms' in sys.argv:
-        test_class = Comms_Test
-    else:
-        raise ValueError("Please specify 'robust' or 'comms' in the command line arguments.")
-
-    #load the test into a test suite
     loader = unittest.TestLoader()
-    suite = loader.loadTestsFromTestCase(test_class)
-
-    #run the test suite
+    suite = loader.loadTestsFromTestCase(Comms_Test)
     runner = unittest.TextTestRunner(verbosity=2)
     result = runner.run(suite)
-
-    #Using exit return code based on test results
-    sys.exit(0)
+    sys.exit(not result.wasSuccessful())

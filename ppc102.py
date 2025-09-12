@@ -1035,6 +1035,7 @@ class PPC102_Coms(object):
         # Check if socket is open
         if not self.sock:
             raise RuntimeError("Socket is not connected.")
+            return None
         try:
             # Validate channel
             if channel not in (1, 2):

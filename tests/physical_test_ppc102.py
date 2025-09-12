@@ -8,6 +8,7 @@ import sys
 import os
 import unittest
 import time 
+from thorlabs.ppc102 import PPC102_Coms
 
 ##########################
 ## CONFIG
@@ -30,44 +31,41 @@ class Physical_Test(unittest.TestCase):
     ##########################
     def test_loop(self):
         time.sleep(.2)
-        try:
-            # Open connection     
-            self.dev = PPC102_Coms(IP=self.IP, port = self.port,log = self.log)
-            time.sleep(.2)
-            self.dev.open()
-            time.sleep(.25)
-            for ch in [1,2]:#Check for channels that are applicable
-                #Close Loop assert Loop states
-                ret = self.dev.get_loop(channel=ch)
-                assert ret == self.dev.OPEN_LOOP or ret == self.dev.CLOSED_LOOP
-                assert self.dev.set_loop(channel=ch, loop=2)
-                ret = self.dev.get_loop(channel=ch)
-                assert ret == self.dev.CLOSED_LOOP
-                #Open Loops and assert the states
-                assert self.dev.set_loop(channel=ch, loop=1)
-                ret = self.dev.get_loop(channel=ch)
-                assert ret == self.dev.OPEN_LOOP
-            self.assertFalse(self.dev.set_loop(channel=5))
-            self.assertFalse(self.dev.set_loop(channel=-1))
-            self.assertTrue(self.dev.set_loop(loop = 4))
-            ret = self.dev.get_loop(channel = 0)
-            assert ret[0] == self.dev.CLOSED_LOOP
-            assert ret[1] == self.dev.CLOSED_LOOP
-            self.assertTrue(self.dev.set_loop(loop = 1))
-            ret = self.dev.get_loop(channel = 0)
-            assert ret[0] == self.dev.OPEN_LOOP
-            assert ret[1] == self.dev.OPEN_LOOP
-            self.dev.close()
-            time.sleep(.25)
-            with self.assertRaises(Exception):
-                self.dev.get_loop()
-                self.dev.set_loop()
-            time.sleep(.25)
-        #Exception Handling
-        except Exception as e:
-            self.fail(f"Failed to test loop: {e}")
-            self.dev.close()
-            self.success = False
+        # Open connection     
+        self.dev = PPC102_Coms(IP=self.IP, port = self.port,log = self.log)
+        time.sleep(.2)
+        self.dev.open()
+        time.sleep(.25)
+        for ch in [1,2]:#Check for channels that are applicable
+            #Close Loop assert Loop states
+            ret = self.dev.get_loop(channel=ch)
+            assert ret == self.dev.OPEN_LOOP or ret == self.dev.CLOSED_LOOP
+            assert self.dev.set_loop(channel=ch, loop=2)
+            ret = self.dev.get_loop(channel=ch)
+            assert ret == self.dev.CLOSED_LOOP
+            #Open Loops and assert the states
+            assert self.dev.set_loop(channel=ch, loop=1)
+            ret = self.dev.get_loop(channel=ch)
+            assert ret == self.dev.OPEN_LOOP
+        self.assertFalse(self.dev.set_loop(channel=5))
+        self.assertFalse(self.dev.set_loop(channel=-1))
+        self.assertTrue(self.dev.set_loop(loop = 4))
+        ret = self.dev.get_loop(channel = 0)
+        assert ret[0] == self.dev.CLOSED_LOOP
+        assert ret[1] == self.dev.CLOSED_LOOP
+        self.assertTrue(self.dev.set_loop(loop = 1))
+        ret = self.dev.get_loop(channel = 0)
+        assert ret[0] == self.dev.OPEN_LOOP
+        assert ret[1] == self.dev.OPEN_LOOP
+        self.dev.close()
+        time.sleep(.25)
+        with self.assertRaises(Exception):
+            self.dev.get_loop()
+            self.dev.set_loop()
+        time.sleep(.25)
+        #Close connection
+        self.dev.close()
+        time.sleep(.25)
 
 
     ##########################
@@ -92,12 +90,7 @@ class Physical_Test(unittest.TestCase):
             ret = self.dev.get_max_output_voltage(channel=ch)
             print(f"Back to Original Channel {ch} Max output Voltage: {ret}")
 
-        #Exception Handling
-            except Exception as e:
-                self.fail(f"Failed to test loop: {e}")
-                self.dev.close()
-                self.success = False
-            #Close connection
+        #Close connection
         self.dev.close()
         time.sleep(.25)
 
@@ -140,11 +133,14 @@ class Physical_Test(unittest.TestCase):
             ret = self.dev.get_loop(channel=ch)
             assert ret == self.dev.OPEN_LOOP
 
-        #Exception Handling
-            except Exception as e:
-                self.fail(f"Failed to test loop: {e}")
-                self.dev.close()
-                self.success = False
-            #Close connection
+        #Close connection
         self.dev.close()
         time.sleep(.25)
+
+
+if __name__ == '__main__':
+    loader = unittest.TestLoader()
+    suite = loader.loadTestsFromTestCase(Robust_Test)
+    runner = unittest.TextTestRunner(verbosity=2)
+    result = runner.run(suite)
+    sys.exit(not result.wasSuccessful())
