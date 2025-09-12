@@ -747,8 +747,8 @@ class PPC102_Coms(object):
             # Validate channel
             if channel == 0:
                 #Check for enable, instruct to set enable if needed
-                if (self.get_enable(channel = 1) == CHAN_DISABLED or 
-                            self.get_enable(channel = 2) == CHAN_DISABLED):
+                if (self.get_enable(channel = 1) == self.CHAN_DISABLED or 
+                            self.get_enable(channel = 2) == self.CHAN_DISABLED):
                     raise PermissionError(
                         'Channel must be enabled.\n'
                         '  Solution: call set_enable(channel= , enable=1)')
@@ -765,7 +765,7 @@ class PPC102_Coms(object):
 
             # Construct command: [0x40, 0x06, 0x01, set_val, chan, 0x01]
             #Check for enable, instruct to set enable if needed
-            if (self.get_enable(channel) == CHAN_DISABLED):
+            if (self.get_enable(channel) == self.CHAN_DISABLED):
                 raise PermissionError(
                     'Channel must be enabled.\n'
                     '  Solution: call set_enable(channel= , enable=1)')
@@ -879,12 +879,12 @@ class PPC102_Coms(object):
             destination = (0x20 + channel) | 0x80  # '2' + channel, as hex
 
             # Check if channel is enabled
-            if self.get_enable(channel) == CHAN_DISABLED:
+            if self.get_enable(channel) == self.CHAN_DISABLED:
                 raise PermissionError('Channel Must Be enabled\n' +
                     '  solution: call set_enable(channel= , enable=1)')     
 
             # Check if loop is open
-            if self.get_loop(channel) == CLOSED_LOOP:
+            if self.get_loop(channel) == self.CLOSED_LOOP:
                 raise PermissionError("Loops Must be OPEN")
 
             # Check voltage range
@@ -933,8 +933,8 @@ class PPC102_Coms(object):
             destination = (0x20 + channel)
 
             # Only proceed if open loop and enabled
-            if (self.get_loop(channel) == OPEN_LOOP and
-                    self.get_enable(channel) == CHAN_ENABLED):
+            if (self.get_loop(channel) == self.OPEN_LOOP and
+                    self.get_enable(channel) == self.CHAN_ENABLED):
 
                 # Construct command
                 command = bytes([0x44, 0x06, 0x01, 0x00,destination,0x01 ])
@@ -989,12 +989,12 @@ class PPC102_Coms(object):
             destination = (0x20 + channel) | 0x80 
 
             #Check for enable, set enable if needed
-            if self.get_enable(channel) == CHAN_DISABLED:
+            if self.get_enable(channel) == self.CHAN_DISABLED:
                 raise PermissionError('Channel Must Be enabled\n' +
                     '  solution: call set_enable(channel= , enable=1)')     
 
             #check for loop state
-            if self.get_loop(channel) == OPEN_LOOP:
+            if self.get_loop(channel) == self.OPEN_LOOP:
                 raise PermissionError("Loops Must be Closed")
 
             #Check for valid inputs
@@ -1043,8 +1043,8 @@ class PPC102_Coms(object):
             destination = (0x20 + channel)
 
             # Send Req OUTPUTPOS command if in closed loop
-            if (self.get_loop(channel) == CLOSED_LOOP and
-                    self.get_enable(channel) == CHAN_ENABLED):
+            if (self.get_loop(channel) == self.CLOSED_LOOP and
+                    self.get_enable(channel) == self.CHAN_ENABLED):
                 command = bytes([0x47, 0x06, 0x01, 0x00,destination, 0x01])
                 self.write(command) #REQ
             else:
