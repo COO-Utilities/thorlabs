@@ -39,24 +39,24 @@ class Physical_Test(unittest.TestCase):
             for ch in [1,2]:#Check for channels that are applicable
                 #Close Loop assert Loop states
                 ret = self.dev.get_loop(channel=ch)
-                assert ret == DATA_CODES.OPEN_LOOP or ret == DATA_CODES.CLOSED_LOOP
+                assert ret == self.dev.OPEN_LOOP or ret == self.dev.CLOSED_LOOP
                 assert self.dev.set_loop(channel=ch, loop=2)
                 ret = self.dev.get_loop(channel=ch)
-                assert ret == DATA_CODES.CLOSED_LOOP
+                assert ret == self.dev.CLOSED_LOOP
                 #Open Loops and assert the states
                 assert self.dev.set_loop(channel=ch, loop=1)
                 ret = self.dev.get_loop(channel=ch)
-                assert ret == DATA_CODES.OPEN_LOOP
+                assert ret == self.dev.OPEN_LOOP
             self.assertFalse(self.dev.set_loop(channel=5))
             self.assertFalse(self.dev.set_loop(channel=-1))
             self.assertTrue(self.dev.set_loop(loop = 4))
             ret = self.dev.get_loop(channel = 0)
-            assert ret[0] == DATA_CODES.CLOSED_LOOP
-            assert ret[1] == DATA_CODES.CLOSED_LOOP
+            assert ret[0] == self.dev.CLOSED_LOOP
+            assert ret[1] == self.dev.CLOSED_LOOP
             self.assertTrue(self.dev.set_loop(loop = 1))
             ret = self.dev.get_loop(channel = 0)
-            assert ret[0] == DATA_CODES.OPEN_LOOP
-            assert ret[1] == DATA_CODES.OPEN_LOOP
+            assert ret[0] == self.dev.OPEN_LOOP
+            assert ret[1] == self.dev.OPEN_LOOP
             self.dev.close()
             time.sleep(.25)
             with self.assertRaises(Exception):
@@ -111,10 +111,10 @@ class Physical_Test(unittest.TestCase):
         for ch in [1,2]:  # Check for channels that are applicable
             # Close loops and assert
             ret = self.dev.get_loop(channel=ch)
-            assert ret == DATA_CODES.OPEN_LOOP or ret == DATA_CODES.CLOSED_LOOP
-            assert self.dev.set_loop(channel=ch, loop=Data_CODES.CLOSED_LOOP)
+            assert ret == self.dev.OPEN_LOOP or ret == self.dev.CLOSED_LOOP
+            assert self.dev.set_loop(channel=ch, loop=self.dev.CLOSED_LOOP)
             ret = self.dev.get_loop(channel=ch)
-            assert ret == DATA_CODES.CLOSED_LOOP
+            assert ret == self.dev.CLOSED_LOOP
             # Set position and assert
             assert self.dev.set_position(channel=ch, position=0)
             time.sleep(.2)
@@ -136,9 +136,9 @@ class Physical_Test(unittest.TestCase):
             assert abs(ret - original_position) < self.error_tolerance*2
             print(f"Channel {ch} Back to Original Position: {ret}")
             #open loops and assert
-            assert self.dev.set_loop(channel=ch, loop=Data_CODES.OPEN_LOOP)
+            assert self.dev.set_loop(channel=ch, loop=self.dev.OPEN_LOOP)
             ret = self.dev.get_loop(channel=ch)
-            assert ret == DATA_CODES.OPEN_LOOP
+            assert ret == self.dev.OPEN_LOOP
 
         #Exception Handling
             except Exception as e:
