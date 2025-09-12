@@ -34,10 +34,10 @@ help(fw102c)
 
 ### PPC102 Example
 ```python
-    from hispec.util.thorlabs.gimbal.PPC102_lib import PPC102_Coms, DATA_CODES
+    from hispec.util.thorlabs.ppc102 import PPC102_Coms
 
     # log = false will now print to command line
-    dev =  PPC102_Coms("BlueGimbalMount.ini",log=False)
+    dev =  PPC102_Coms(IP="",port="",log=False)
 
     #Open connection
     dev.open()
