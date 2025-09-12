@@ -45,6 +45,7 @@ class PPC102_Coms(object):
         - The output of the device depends solely on the 'enable' bit
     '''
 
+    #TODO:: Re-test with these constants
     #Class Constants
     OPEN_LOOP = 1
     CLOSED_LOOP = 2
