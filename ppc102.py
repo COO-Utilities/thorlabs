@@ -55,25 +55,24 @@ class PPC102_Coms(object):
                                                         timeout: float = 2.0)
         '''
         # Logger setup
+        logname = __name__.rsplit(".", 1)[-1]
+        self.logger = logging.getLogger(logname)
+        self.logger.setLevel(logging.DEBUG)
         if log:
-            logname = __name__.rsplit(".", 1)[-1]
-            self.logger = logging.getLogger(logname)
-            self.logger.setLevel(logging.DEBUG)
+            self.logger.addHandler(FileHandler)
             log_handler = logging.FileHandler(logname + ".log")
             formatter = logging.Formatter(
                 "%(asctime)s--%(name)s--%(levelname)s--%(module)s--"
                 "%(funcName)s--%(message)s")
             log_handler.setFormatter(formatter)
             self.logger.addHandler(log_handler)
+        # Console handler for real-time output
+        console_handler = logging.StreamHandler()
+        console_formatter = logging.Formatter("%(asctime)s--%(message)s")
+        console_handler.setFormatter(console_formatter)
+        self.logger.addHandler(console_handler)
 
-            console_handler = logging.StreamHandler()
-            console_formatter = logging.Formatter("%(asctime)s--%(message)s")
-            console_handler.setFormatter(console_formatter)
-            self.logger.addHandler(console_handler)
-
-            self.logger.info("Logger initialized for PPC102_Coms")
-        else:
-            self.logger = None
+        self.logger.info("Logger initialized for PPC102_Coms")
 
         # get coms
         self.IP = IP
@@ -107,20 +106,14 @@ class PPC102_Coms(object):
             self.sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
             self.sock.settimeout(self.timeout)
             self.sock.connect((self.IP, self.port))
-            if self.logger is not None:
-                self.logger.info(f"Connected to {self.IP}:{self.port}")
-                self.logger.info("Preliminary read_buff to clear buffer: " \
-                                    "Sometimes inicializes with 0x00 in buffer")
-            else:
-                print(f"Connected to {self.IP}:{self.port}")
-                print("Preliminary read_buff to clear buffer: " \
-                                    "Sometimes inicializes with 0x00 in buffer")
+            self.logger.info(f"Connected to {self.IP}:{self.port}")
+            self.logger.info("Preliminary read_buff to clear buffer: " \
+                                "Sometimes inicializes with 0x00 in buffer")
             # silent this single read buff execution!!!
             original_logger_level = None
-            if self.logger:
-                original_logger_level = self.logger.level
-                self.logger.setLevel(100)  # Temporarily silence logger 
-                                                        #(higher than CRITICAL)
+            original_logger_level = self.logger.level
+            self.logger.setLevel(100)  # Temporarily silence logger 
+                                                    #(higher than CRITICAL)
 
             try:
                 with contextlib.redirect_stdout(io.StringIO()):
@@ -131,15 +124,11 @@ class PPC102_Coms(object):
             except Exception:
                 pass  # Silently ignore
             finally:
-                if self.logger and original_logger_level is not None:
-                    self.logger.setLevel(original_logger_level)
+                self.logger.setLevel(original_logger_level)
             
             return True # Successful Connection to Device
         except socket.error as e:
-            if self.logger is not None:
-                self.logger.error(f"Socket connection failed: {e}")
-            else:
-                print(f"Socket connection failed: {e}")
+            self.logger.error(f"Socket connection failed: {e}")
             self.sock = None
             return False #Unsuccessful Connection
 
@@ -151,15 +140,9 @@ class PPC102_Coms(object):
         if self.sock:
             try:
                 self.sock.close()
-                if self.logger is not None:
-                    self.logger.info("Socket closed.")
-                else:
-                    print("Socket closed")
+                self.logger.info("Socket closed.")
             except socket.error as e:
-                if self.logger is not None:
-                    self.logger.error(f"Error closing socket: {e}")
-                else:
-                    print(f"Error closing socket: {e}")
+                self.logger.error(f"Error closing socket: {e}")
             finally:
                 self.sock = None
     
@@ -178,11 +161,7 @@ class PPC102_Coms(object):
         try:
             self.sock.sendall(msg)
         except socket.error as e:
-            if self.logger is not None:
-                self.logger.error(f"Error sending data: {e}")
-            else:
-                print(f"Error sending data: {e}")
-            #self.close()
+            self.logger.error(f"Error sending data: {e}")
         
     def read_buff(self):
         '''
@@ -200,17 +179,10 @@ class PPC102_Coms(object):
             #print(hex_array)
             return hex_array
         except socket.timeout:
-            if self.logger is not None:
-                self.logger.error("Read timed out.")
-            else:
-                print("Read Timed Out")
+            self.logger.error("Read timed out.")
             return []
         except socket.error as e:
-            if self.logger is not None:
-                self.logger.error(f"Error receiving data: {e}")
-            else:
-                print(f"Error receiving data: {e}")
-            #self.close()
+            self.logger.error(f"Error receiving data: {e}")
             return []
     
     def _interpret_bit_flags(self, byte_data):
@@ -238,6 +210,37 @@ class PPC102_Coms(object):
             results[description] = bool(status & (1 << bit))
 
         return results
+    
+    def _check_for_reboot_(self):
+        '''
+            Checks if an unrecoverable error has occured and the device
+            needs to be power cycled
+            NOTE:: Checks for consistent behavior of unhappy state
+            Returns: N/A, print statement if reboot needed
+        '''
+        self.logger.info("Checking for unrecoverable state")
+        #Send a set of commands to see if device responds correctly
+        try:
+            #Message to query enable state, position and loop state
+            enableq = bytes([0x11, 0x02, 0x01, 0x00, 0x21, 0x01])
+            posq = bytes([0x21, 0x06, 0x01, 0x00, 0x21, 0x01])
+            loopq = bytes([0x41, 0x06, 0x01, 0x00, 0x21, 0x01])
+            #counter for number of failed responses
+            message_list = [enableq, posq, loopq]
+            for message in message_list:
+                self.write(message)
+                time.sleep(self.DELAY)
+                result = self.read_buff()
+                if len(result) < 6:
+                    counter += 1
+            if counter >= 2: 
+                raise BrokenPipeError("Device in unrecoverable State, Power Cycle Needed")   
+            else:
+                self.logger.info("Device responding correctly")
+                return      
+        except Exception as e:
+            self.logger.error(f"Error: {e}")
+            return
 
 
     ######## Functions for Complete Stage Control ########
@@ -258,10 +261,7 @@ class PPC102_Coms(object):
             self.write(bytes([0x23, 0x02, 0x02, 0x00, 0x11, 0x01]))
             time.sleep(3)
         except socket.error as e:
-            if self.logger is not None:
-                self.logger.error(f"Error: {e}")
-            else:
-                print(f"Error: {e}")
+            self.logger.error(f"Error: {e}")
             return None
     
     def set_enable(self, channel: int = 0, enable: int = 1):
@@ -301,10 +301,8 @@ class PPC102_Coms(object):
             time.sleep(self.DELAY)
             return True
         except Exception as e:
-            if self.logger is not None:
-                self.logger.error(f"Error: {e}")
-            else:
-                print(f"Error: {e}")
+            self.logger.error(f"Error: {e}")
+            self._check_for_reboot_()
             return False
         
     def get_enable(self, channel: int = 0):
@@ -361,10 +359,8 @@ class PPC102_Coms(object):
             return int(enable_state[2:],16)  # Already an int if read_buff 
                                                         #returns a byte array
         except Exception as e:
-            if self.logger is not None:
-                self.logger.error(f"Error: {e}")
-            else:
-                print(f"Error: {e}")
+            self.logger.error(f"Error: {e}")
+            self._check_for_reboot_()
             return -1
 
     def _set_digital_outputs(self,channel:int = 1, bit=0000):
@@ -414,10 +410,8 @@ class PPC102_Coms(object):
             time.sleep(self.DELAY)  # Wait for execution of set
             return True
         except Exception as e:
-            if self.logger is not None:
-                self.logger.error(f"Error: {e}")
-            else:
-                print(f"Error: {e}")
+            self.logger.error(f"Error: {e}")
+            self._check_for_reboot_()
             return False
 
     def _get_digital_outputs(self,channel:int = 1, bit=0000):
@@ -472,10 +466,8 @@ class PPC102_Coms(object):
             digioutputs_state = digioutputs_status[2]
             return int(digioutputs_state[2:],16)
         except Exception as e:
-            if self.logger is not None:
-                self.logger.error(f"Error: {e}")
-            else:
-                print(f"Error: {e}")
+            self.logger.error(f"Error: {e}")
+            self._check_for_reboot_()
             return None
 
     def _hw_disconnect(self):
@@ -498,16 +490,11 @@ class PPC102_Coms(object):
             time.sleep(self.DELAY)  # Data Grab
             res = self.read_buff()
             #Save all info needed into self.variables
-            if self.logger is not None:
-                self.logger.info("Disconnected from Hardware")
-            else:
-                print("Disconnected from Hardware")
+            self.logger.info("Disconnected from Hardware")
             return True
         except Exception as e:
-            if self.logger is not None:
-                self.logger.error(f"Error: {e}")
-            else:
-                print(f"Error: {e}")
+            self.logger.error(f"Error: {e}")
+            self._check_for_reboot_()
             return False
     
     def _hw_response(self):
@@ -542,10 +529,8 @@ class PPC102_Coms(object):
                 raise BufferError("Buffer empty when expecting response")
             return res  # TODO: Optional – parse return code if needed
         except Exception as e:
-            if self.logger is not None:
-                self.logger.error(f"Error: {e}")
-            else:
-                print(f"Error: {e}")
+            self.logger.error(f"Error: {e}")
+            self._check_for_reboot_()
             return None
     
     def _hw_richresponse(self): #TODO:: Finish
@@ -585,10 +570,8 @@ class PPC102_Coms(object):
                 raise BufferError("Buffer empty when expecting response")
             return res  # TODO: Optional – parse message content
         except Exception as e:
-            if self.logger is not None:
-                self.logger.error(f"Error: {e}")
-            else:
-                print(f"Error: {e}")
+            self.logger.error(f"Error: {e}")
+            self._check_for_reboot_()
             return None
     
     def _hw_start_update_msgs(self):
@@ -618,10 +601,8 @@ class PPC102_Coms(object):
             #returns printed state 
             return True
         except Exception as e:
-            if self.logger is not None:
-                self.logger.error(f"Error: {e}")
-            else:
-                print(f"Error: {e}")
+            self.logger.error(f"Error: {e}")
+            self._check_for_reboot_()
             return False
     
     def _hw_stop_update_msgs(self):
@@ -643,10 +624,8 @@ class PPC102_Coms(object):
             time.sleep(self.DELAY)  # Wait Delay time for write
             return True
         except Exception as e:
-            if self.logger is not None:
-                self.logger.error(f"Error: {e}")
-            else:
-                print(f"Error: {e}")
+            self.logger.error(f"Error: {e}")
+            self._check_for_reboot_()
             return False
 
     def _get_info(self):#TODO:: Parse this message
@@ -674,10 +653,8 @@ class PPC102_Coms(object):
                 raise BufferError("Buffer empty when expecting response")
             #Save all info needed into self.variables
         except Exception as e:
-            if self.logger is not None:
-                self.logger.error(f"Error: {e}")
-            else:
-                print(f"Error: {e}")
+            self.logger.error(f"Error: {e}")
+            self._check_for_reboot_()
             return None
 
     def get_rack_bay_used(self, bay:int = 0):
@@ -711,10 +688,8 @@ class PPC102_Coms(object):
             bay_state = bay_res[3]  # Already an int if read_buff returns bytes/bytearray
             return int(bay_state[2:],16) == 1
         except Exception as e:
-            if self.logger is not None:
-                self.logger.error(f"Error: {e}")
-            else:
-                print(f"Error: {e}")
+            self.logger.error(f"Error: {e}")
+            self._check_for_reboot_()
             return None
 
     def set_loop(self, channel: int = 0, loop:int = 1):
@@ -773,10 +748,8 @@ class PPC102_Coms(object):
             time.sleep(self.DELAY)
             return True
         except Exception as e:
-            if self.logger is not None:
-                self.logger.error(f"Error: {e}")
-            else:
-                print(f"Error: {e}")
+            self.logger.error(f"Error: {e}")
+            self._check_for_reboot_()
             return False
     
     def get_loop(self, channel: int = 0):
@@ -834,10 +807,8 @@ class PPC102_Coms(object):
             # retrun loop state
             return int(loop_state[2:],16)
         except Exception as e:
-            if self.logger is not None:
-                self.logger.error(f"Error: {e}")
-            else:
-                print(f"Error: {e}")
+            self.logger.error(f"Error: {e}")
+            self._check_for_reboot_()
             return None
         
     def are_loops_closed(self, channel: int = 0):
@@ -890,10 +861,7 @@ class PPC102_Coms(object):
             if -32768 < volts < 32767:
                 volts_bytes = volts.to_bytes(2, byteorder='little', signed=True)
             else:
-                if self.logger is not None:
-                    self.logger.error('Voltage out of Range')
-                else:
-                    print('Voltage out of Range')
+                self.logger.error('Voltage out of Range')
                 return False
 
             # Channel identifier (usually 0x01 0x00)
@@ -907,10 +875,8 @@ class PPC102_Coms(object):
             time.sleep(self.DELAY)
             return True
         except Exception as e:
-            if self.logger is not None:
-                self.logger.error(f"Error: {e}")
-            else:
-                print(f"Error: {e}")
+            self.logger.error(f"Error: {e}")
+            self._check_for_reboot_()
             return False
     
     def get_output_volts(self, channel: int = 1):
@@ -960,10 +926,8 @@ class PPC102_Coms(object):
                 voltage_raw -= 0x10000
             return voltage_raw
         except Exception as e:
-            if self.logger is not None:
-                self.logger.error(f"Error: {e}")
-            else:
-                print(f"Error: {e}")
+            self.logger.error(f"Error: {e}")
+            self._check_for_reboot_()
             return None
     
     def set_position(self, channel: int = 1, pos:float = 0.00):
@@ -1002,10 +966,7 @@ class PPC102_Coms(object):
             if 0 <= converted_pos <= 32767:
                 pos_bytes = converted_pos.to_bytes(2, byteorder='little', signed=False)
             else:
-                if self.logger is not None:
-                    self.logger.error('Position out of Range')
-                else:
-                    print('Position out of Range')
+                self.logger.error('Position out of Range')
                 return False
 
             #Write command
@@ -1015,10 +976,8 @@ class PPC102_Coms(object):
             time.sleep(self.DELAY)
             return True
         except Exception as e:
-            if self.logger is not None:
-                self.logger.error(f"Error: {e}")
-            else:
-                print(f"Error: {e}")
+            self.logger.error(f"Error: {e}")
+            self._check_for_reboot_()
             return False
         
     def get_position(self, channel: int = 1):
@@ -1071,10 +1030,8 @@ class PPC102_Coms(object):
 
             return mRad_pos
         except Exception as e:
-            if self.logger is not None:
-                self.logger.error(f"Error: {e}")
-            else:
-                print(f"Error: {e}")
+            self.logger.error(f"Error: {e}")
+            self._check_for_reboot_()
             return None
 
     def get_max_travel(self, channel: int = 1):
@@ -1120,10 +1077,8 @@ class PPC102_Coms(object):
             hexVal = byte2 << 8 | byte1
             return hexVal
         except Exception as e:
-            if self.logger is not None:
-                self.logger.error(f"Error: {e}")
-            else:
-                print(f"Error: {e}")
+            self.logger.error(f"Error: {e}")
+            self._check_for_reboot_()
             return None
 
     def get_status_bits(self, channel: int = 1):
@@ -1167,17 +1122,11 @@ class PPC102_Coms(object):
             #deliver to interpret bytes function
             results = self._interpret_bit_flags(status_bytes)
             
-            if self.logger is not None:
-                self.logger.info("Status Flags:", results)
-            else:
-                print("Status Flags:", results)
-
+            self.logger.info("Status Flags:", results)
             return results
         except Exception as e:
-            if self.logger is not None:
-                self.logger.error(f"Error: {e}")
-            else:
-                print(f"Error: {e}")
+            self.logger.error(f"Error: {e}")
+            self._check_for_reboot_()
             return None
     
     def get_status_update(self, channel: int = 1):
@@ -1224,20 +1173,13 @@ class PPC102_Coms(object):
             flags = self._interpret_bit_flags(stat_bytes)
             #flags = self.interpret_bit_flags(stat_bytes)
 
-            if self.logger is not None:
-                self.logger.info(f"Voltage: {voltage}")
-                self.logger.info(f"Position: {mRad_pos}")
-            else:
-                print(f"Voltage: {voltage}")
-                print(f"Position: {mRad_pos}")
-                print(f"Status bytes: {flags}")
+            self.logger.info(f"Voltage: {voltage}")
+            self.logger.info(f"Position: {mRad_pos}")
 
             return voltage, mRad_pos, flags
         except Exception as e:
-            if self.logger is not None:
-                self.logger.error(f"Error: {e}")
-            else:
-                print(f"Error: {e}")
+            self.logger.error(f"Error: {e}")
+            self._check_for_reboot_()
             return None
     
     def set_max_output_voltage(self, channel: int = 1, limit:int = 150):
@@ -1283,10 +1225,8 @@ class PPC102_Coms(object):
             time.sleep(self.DELAY)
             return True
         except Exception as e:
-            if self.logger is not None:
-                self.logger.error(f"Error: {e}")
-            else:
-                print(f"Error: {e}")
+            self.logger.error(f"Error: {e}")
+            self._check_for_reboot_()
             return False
         
     def get_max_output_voltage(self, channel: int = 1):
@@ -1319,10 +1259,8 @@ class PPC102_Coms(object):
             max_volts = max_volts/10
             return max_volts
         except Exception as e:
-            if self.logger is not None:
-                self.logger.error(f"Error: {e}")
-            else:
-                print(f"Error: {e}")
+            self.logger.error(f"Error: {e}")
+            self._check_for_reboot_()
             return None
 
     def _set_ppc_PIDCONSTS(self, channel: int = 1, p_const: float = 900.0, 
@@ -1388,20 +1326,13 @@ class PPC102_Coms(object):
             self.write(packet)
             time.sleep(self.DELAY)
 
-            if self.logger is not None:
-                self.logger.info(f"PID constants sent: P={p_const}, "\
+            self.logger.info(f"PID constants sent: P={p_const}, "\
                     "I={i_const}, D={d_const}, DFC={dfc_const}, "\
                     "Filter={'ON' if derivFilter else 'OFF'}")
-            else:
-                print(f"PID constants sent: P={p_const}, I={i_const}, "\
-                      "D={d_const}, DFC={dfc_bytes}, "\
-                      "Filter={'ON' if derivFilter else 'OFF'}")
             return True
         except Exception as e:
-            if self.logger is not None:
-                self.logger.error(f"Error in set_pid_consts: {e}")
-            else:
-                print(f"Error in set_pid_consts: {e}")
+            self.logger.error(f"Error in set_pid_consts: {e}")
+            self._check_for_reboot_()
             return False
     
     def _get_ppc_PIDCONSTS(self, channel:int = 1):
@@ -1453,18 +1384,12 @@ class PPC102_Coms(object):
                 'derivFilter': deriv_filter
             }
 
-            if self.logger is not None:
-                self.logger.info(f"Retrieved PID constants: {pid_consts}")
-            else:
-                print(f"Retrieved PID constants: {pid_consts}")
-
+            self.logger.info(f"Retrieved PID constants: {pid_consts}")
             return pid_consts
 
         except Exception as e:
-            if self.logger is not None:
-                self.logger.error(f"Error in get_pid_consts: {e}")
-            else:
-                print(f"Error in get_pid_consts: {e}")
+            self.logger.error(f"Error in get_pid_consts: {e}")
+            self._check_for_reboot_()
             return None
     
     def _set_ppc_NOTCHPARAMS(self, channel: int, filterNO: int,
@@ -1545,22 +1470,14 @@ class PPC102_Coms(object):
             self.write(datapacket)
             time.sleep(self.DELAY)
 
-            if self.logger is not None:
-                self.logger.info(f"Set NotchParams CH{channel}: F1({filter_1fc}"
+            self.logger.info(f"Set NotchParams CH{channel}: F1({filter_1fc}"
                     f"Hz/Q={filter_1q})={'ON' if notch_filter1_on else 'OFF'}, "
                     f"F2({filter_2fc}Hz/Q={filter_2q})={'ON' if notch_filter2_on else 'OFF'}")
-            else:
-                print(f"Set NotchParams CH{channel}: F1({filter_1fc}"
-                    f"Hz/Q={filter_1q})={'ON' if notch_filter1_on else 'OFF'}, "
-                    f"F2({filter_2fc}Hz/Q={filter_2q})={'ON' if notch_filter2_on else 'OFF'}")
-
             return True
 
         except Exception as e:
-            if self.logger is not None:
-                self.logger.error(f"Error in set_notch_params: {e}")
-            else:
-                print(f"Error in set_notch_params: {e}")
+            self.logger.error(f"Error in set_notch_params: {e}")
+            self._check_for_reboot_()
             return False
     
     def _get_ppc_NOTCHPARAMS(self, channel: int = 1):
@@ -1612,18 +1529,12 @@ class PPC102_Coms(object):
             }
 
             #Log or print results
-            if self.logger is not None:
-                self.logger.info(f"Got NotchParams CH{channel}: {result}")
-            else:
-                print(f"Got NotchParams CH{channel}: {result}")
-
+            self.logger.info(f"Got NotchParams CH{channel}: {result}")
             return result
 
         except Exception as e:
-            if self.logger is not None:
-                self.logger.error(f"Error in get_notch_params: {e}")
-            else:
-                print(f"Error in get_notch_params: {e}")
+            self.logger.error(f"Error in get_notch_params: {e}")
+            self._check_for_reboot_()
             return None
     
     def _set_ppc_IOSETTINGS(self, channel: int = 1, cntl_src:int = 3, 
@@ -1677,25 +1588,15 @@ class PPC102_Coms(object):
             header = bytes([0x96, 0x06, 0x0E, 0x00, destination, 0x01])
             datapacket = header + package
             self.write(datapacket)
-            if self.logger is not None:
-                self.logger.info(
+            self.logger.info(
                         f"Set IOSettings CH{channel}: "
                         f"ControlSrc={cntl_src}, MonitorOutSig={monitor_opsig}, MonitorOutBW={monitor_opbw}, "
                         f"FeedbackSrc={feedback_src}, FPBrightness={fp_brightness}, Reserved={reserved}"
                     )
-            else:
-                print(
-                    f"Set IOSettings CH{channel}: "
-                    f"ControlSrc={cntl_src}, MonitorOutSig={monitor_opsig}, MonitorOutBW={monitor_opbw}, "
-                    f"FeedbackSrc={feedback_src}, FPBrightness={fp_brightness}, Reserved={reserved}"
-                )
-
             return True
         except Exception as e:
-            if self.logger is not None:
-                self.logger.error(f"Error in set_ppc_IOSETTINGS: {e}")
-            else:
-                print(f"Error in set_ppc_IOSETTINGS: {e}")
+            self.logger.error(f"Error in set_ppc_IOSETTINGS: {e}")
+            self._check_for_reboot_()
             return False
     
     def _get_ppc_IOSETTINGS(self, channel: int = 1):
@@ -1736,10 +1637,8 @@ class PPC102_Coms(object):
                         'reserved':       parse_word(18),
                     }
         except Exception as e:
-            if self.logger is not None:
-                self.logger.error(f"Error in set_ppc_IOSETTINGS: {e}")
-            else:
-                print(f"Error in set_ppc_IOSETTINGS: {e}")
+            self.logger.error(f"Error in set_ppc_IOSETTINGS: {e}")
+            self._check_for_reboot_()
             return None
     
     def _set_ppc_EEPROMPARAMS(self, channel, msg_id):
