@@ -210,6 +210,37 @@ class PPC102_Coms(object):
             results[description] = bool(status & (1 << bit))
 
         return results
+    
+    def _check_for_reboot_(self):
+        '''
+            Checks if an unrecoverable error has occured and the device
+            needs to be power cycled
+            NOTE:: Checks for consistent behavior of unhappy state
+            Returns: N/A, print statement if reboot needed
+        '''
+        self.logger.info("Checking for unrecoverable state")
+        #Send a set of commands to see if device responds correctly
+        try:
+            #Message to query enable state, position and loop state
+            enableq = bytes([0x11, 0x02, 0x01, 0x00, 0x21, 0x01])
+            posq = bytes([0x21, 0x06, 0x01, 0x00, 0x21, 0x01])
+            loopq = bytes([0x41, 0x06, 0x01, 0x00, 0x21, 0x01])
+            #counter for number of failed responses
+            message_list = [enableq, posq, loopq]
+            for message in message_list:
+                self.write(message)
+                time.sleep(self.DELAY)
+                result = self.read_buff()
+                if len(result) < 6:
+                    counter += 1
+            if counter >= 2: 
+                raise BrokenPipeError("Device in unrecoverable State, Power Cycle Needed")   
+            else:
+                self.logger.info("Device responding correctly")
+                return      
+        except Exception as e:
+            self.logger.error(f"Error: {e}")
+            return
 
 
     ######## Functions for Complete Stage Control ########
@@ -271,6 +302,7 @@ class PPC102_Coms(object):
             return True
         except Exception as e:
             self.logger.error(f"Error: {e}")
+            self._check_for_reboot_()
             return False
         
     def get_enable(self, channel: int = 0):
@@ -328,6 +360,7 @@ class PPC102_Coms(object):
                                                         #returns a byte array
         except Exception as e:
             self.logger.error(f"Error: {e}")
+            self._check_for_reboot_()
             return -1
 
     def _set_digital_outputs(self,channel:int = 1, bit=0000):
@@ -378,6 +411,7 @@ class PPC102_Coms(object):
             return True
         except Exception as e:
             self.logger.error(f"Error: {e}")
+            self._check_for_reboot_()
             return False
 
     def _get_digital_outputs(self,channel:int = 1, bit=0000):
@@ -433,6 +467,7 @@ class PPC102_Coms(object):
             return int(digioutputs_state[2:],16)
         except Exception as e:
             self.logger.error(f"Error: {e}")
+            self._check_for_reboot_()
             return None
 
     def _hw_disconnect(self):
@@ -459,6 +494,7 @@ class PPC102_Coms(object):
             return True
         except Exception as e:
             self.logger.error(f"Error: {e}")
+            self._check_for_reboot_()
             return False
     
     def _hw_response(self):
@@ -494,6 +530,7 @@ class PPC102_Coms(object):
             return res  # TODO: Optional – parse return code if needed
         except Exception as e:
             self.logger.error(f"Error: {e}")
+            self._check_for_reboot_()
             return None
     
     def _hw_richresponse(self): #TODO:: Finish
@@ -534,6 +571,7 @@ class PPC102_Coms(object):
             return res  # TODO: Optional – parse message content
         except Exception as e:
             self.logger.error(f"Error: {e}")
+            self._check_for_reboot_()
             return None
     
     def _hw_start_update_msgs(self):
@@ -564,6 +602,7 @@ class PPC102_Coms(object):
             return True
         except Exception as e:
             self.logger.error(f"Error: {e}")
+            self._check_for_reboot_()
             return False
     
     def _hw_stop_update_msgs(self):
@@ -586,6 +625,7 @@ class PPC102_Coms(object):
             return True
         except Exception as e:
             self.logger.error(f"Error: {e}")
+            self._check_for_reboot_()
             return False
 
     def _get_info(self):#TODO:: Parse this message
@@ -614,6 +654,7 @@ class PPC102_Coms(object):
             #Save all info needed into self.variables
         except Exception as e:
             self.logger.error(f"Error: {e}")
+            self._check_for_reboot_()
             return None
 
     def get_rack_bay_used(self, bay:int = 0):
@@ -648,6 +689,7 @@ class PPC102_Coms(object):
             return int(bay_state[2:],16) == 1
         except Exception as e:
             self.logger.error(f"Error: {e}")
+            self._check_for_reboot_()
             return None
 
     def set_loop(self, channel: int = 0, loop:int = 1):
@@ -707,6 +749,7 @@ class PPC102_Coms(object):
             return True
         except Exception as e:
             self.logger.error(f"Error: {e}")
+            self._check_for_reboot_()
             return False
     
     def get_loop(self, channel: int = 0):
@@ -765,6 +808,7 @@ class PPC102_Coms(object):
             return int(loop_state[2:],16)
         except Exception as e:
             self.logger.error(f"Error: {e}")
+            self._check_for_reboot_()
             return None
         
     def are_loops_closed(self, channel: int = 0):
@@ -832,6 +876,7 @@ class PPC102_Coms(object):
             return True
         except Exception as e:
             self.logger.error(f"Error: {e}")
+            self._check_for_reboot_()
             return False
     
     def get_output_volts(self, channel: int = 1):
@@ -882,6 +927,7 @@ class PPC102_Coms(object):
             return voltage_raw
         except Exception as e:
             self.logger.error(f"Error: {e}")
+            self._check_for_reboot_()
             return None
     
     def set_position(self, channel: int = 1, pos:float = 0.00):
@@ -931,6 +977,7 @@ class PPC102_Coms(object):
             return True
         except Exception as e:
             self.logger.error(f"Error: {e}")
+            self._check_for_reboot_()
             return False
         
     def get_position(self, channel: int = 1):
@@ -984,7 +1031,8 @@ class PPC102_Coms(object):
             return mRad_pos
         except Exception as e:
             self.logger.error(f"Error: {e}")
-            return  None
+            self._check_for_reboot_()
+            return None
 
     def get_max_travel(self, channel: int = 1):
         '''
@@ -1030,7 +1078,8 @@ class PPC102_Coms(object):
             return hexVal
         except Exception as e:
             self.logger.error(f"Error: {e}")
-            return  None
+            self._check_for_reboot_()
+            return None
 
     def get_status_bits(self, channel: int = 1):
         '''
@@ -1077,7 +1126,8 @@ class PPC102_Coms(object):
             return results
         except Exception as e:
             self.logger.error(f"Error: {e}")
-            return  None
+            self._check_for_reboot_()
+            return None
     
     def get_status_update(self, channel: int = 1):
         '''
@@ -1129,7 +1179,8 @@ class PPC102_Coms(object):
             return voltage, mRad_pos, flags
         except Exception as e:
             self.logger.error(f"Error: {e}")
-            return  None
+            self._check_for_reboot_()
+            return None
     
     def set_max_output_voltage(self, channel: int = 1, limit:int = 150):
         '''
@@ -1175,7 +1226,8 @@ class PPC102_Coms(object):
             return True
         except Exception as e:
             self.logger.error(f"Error: {e}")
-            return  False
+            self._check_for_reboot_()
+            return False
         
     def get_max_output_voltage(self, channel: int = 1):
         '''
@@ -1208,6 +1260,7 @@ class PPC102_Coms(object):
             return max_volts
         except Exception as e:
             self.logger.error(f"Error: {e}")
+            self._check_for_reboot_()
             return None
 
     def _set_ppc_PIDCONSTS(self, channel: int = 1, p_const: float = 900.0, 
@@ -1279,6 +1332,7 @@ class PPC102_Coms(object):
             return True
         except Exception as e:
             self.logger.error(f"Error in set_pid_consts: {e}")
+            self._check_for_reboot_()
             return False
     
     def _get_ppc_PIDCONSTS(self, channel:int = 1):
@@ -1335,6 +1389,7 @@ class PPC102_Coms(object):
 
         except Exception as e:
             self.logger.error(f"Error in get_pid_consts: {e}")
+            self._check_for_reboot_()
             return None
     
     def _set_ppc_NOTCHPARAMS(self, channel: int, filterNO: int,
@@ -1422,6 +1477,7 @@ class PPC102_Coms(object):
 
         except Exception as e:
             self.logger.error(f"Error in set_notch_params: {e}")
+            self._check_for_reboot_()
             return False
     
     def _get_ppc_NOTCHPARAMS(self, channel: int = 1):
@@ -1478,6 +1534,7 @@ class PPC102_Coms(object):
 
         except Exception as e:
             self.logger.error(f"Error in get_notch_params: {e}")
+            self._check_for_reboot_()
             return None
     
     def _set_ppc_IOSETTINGS(self, channel: int = 1, cntl_src:int = 3, 
@@ -1539,6 +1596,7 @@ class PPC102_Coms(object):
             return True
         except Exception as e:
             self.logger.error(f"Error in set_ppc_IOSETTINGS: {e}")
+            self._check_for_reboot_()
             return False
     
     def _get_ppc_IOSETTINGS(self, channel: int = 1):
@@ -1580,6 +1638,7 @@ class PPC102_Coms(object):
                     }
         except Exception as e:
             self.logger.error(f"Error in set_ppc_IOSETTINGS: {e}")
+            self._check_for_reboot_()
             return None
     
     def _set_ppc_EEPROMPARAMS(self, channel, msg_id):
