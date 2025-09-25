@@ -8,7 +8,7 @@ import sys
 import os
 import unittest
 import time
-from thorlabs.fw102c import FilterWheelController
+from fw102c import FilterWheelController
 
 ##########################
 ## CONFIG

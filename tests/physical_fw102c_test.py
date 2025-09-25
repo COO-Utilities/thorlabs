@@ -9,14 +9,14 @@ import sys
 import os
 import unittest
 import time 
-from thorlabs.fw102c import FilterWheelController
+from fw102c import FilterWheelController
 
 
 ##########################
 ## CONFIG
 ## connection and Disconnection in all test
 ##########################
-class Physical_Test(unittest.TestCase)
+class Physical_Test(unittest.TestCase):
 
     #Instances for Test management
     def setUp(self):

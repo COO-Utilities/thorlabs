@@ -34,5 +34,5 @@ dev = [
 testpaths = ["tests"]
 
 [tool.setuptools.packages.find]
+# find packages under the "thorlabs" namespace
 include = ["ppc102", "fw102c"]
-

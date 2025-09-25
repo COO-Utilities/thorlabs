@@ -7,8 +7,6 @@ import socket
 import threading
 import time
 
-from hispec.util.helper import logger_utils
-
 
 class FilterWheelController:
     """ Handle all correspondence with the serial interface of the
@@ -30,15 +28,23 @@ class FilterWheelController:
         self.lock = threading.Lock()
         self.socket = None
 
-        # set up logging
+        # Logger setup
+        logname = __name__.rsplit(".", 1)[-1]
+        self.logger = logging.getLogger(logname)
+        self.logger.setLevel(logging.DEBUG)
         if log:
-            if logfile is None:
-                logfile = __name__.rsplit(".", 1)[-1] + ".log"
-            self.logger = logger_utils.setup_logger(__name__, log_file=logfile)
-            if quiet:
-                self.logger.setLevel(logging.INFO)
-        else:
-            self.logger = None
+            self.logger.addHandler(FileHandler)
+            log_handler = logging.FileHandler(logname + ".log")
+            formatter = logging.Formatter(
+                "%(asctime)s--%(name)s--%(levelname)s--%(module)s--"
+                "%(funcName)s--%(message)s")
+            log_handler.setFormatter(formatter)
+            self.logger.addHandler(log_handler)
+        # Console handler for real-time output
+        console_handler = logging.StreamHandler()
+        console_formatter = logging.Formatter("%(asctime)s--%(message)s")
+        console_handler.setFormatter(console_formatter)
+        self.logger.addHandler(console_handler)
 
     def set_connection(self, ip=None, port=None):
         """ Configure the connection to the controller.

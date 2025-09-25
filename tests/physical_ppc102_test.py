@@ -9,7 +9,7 @@ import sys
 import os
 import unittest
 import time 
-from thorlabs.ppc102 import PPC102_Coms
+from ppc102 import PPC102_Coms
 
 ##########################
 ## CONFIG
@@ -99,7 +99,7 @@ class Physical_Test(unittest.TestCase):
     ## Position Query and Movement
     ##########################
     def test_position_query_and_movement(self):
-        self.dev = #Controller/Library for the device
+        self.dev = PPC102_Coms(IP=self.IP, port = self.port,log = self.log)
         self.dev.open()
         time.sleep(.25)
         for ch in [1,2]:  # Check for channels that are applicable

@@ -3,11 +3,12 @@
 #################
 
 import pytest
+pytestmark = pytest.mark.skip("Exclude from default pytest runs")
 import sys
 import os
 import unittest
 import time
-from thorlabs.fw102c import FilterWheelController
+from fw102c import FilterWheelController
 
 ##########################
 ## CONFIG

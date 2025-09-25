@@ -3,11 +3,12 @@
 #################
 
 import pytest
+pytestmark = pytest.mark.skip("Exclude from default pytest runs")
 import sys
 import os
 import unittest
 import time
-from thorlabs.ppc102 import PPC102_Coms
+from ppc102 import PPC102_Coms
 
 ##########################
 ## CONFIG

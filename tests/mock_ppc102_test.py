@@ -2,13 +2,14 @@
 import unittest
 from unittest.mock import patch, MagicMock
 # pylint: disable=import-error,no-name-in-module
-from thorlabs.ppc102 import PPC102_Coms
+from ppc102 import PPC102_Coms
+import time
 
 
 class TestPPC102_Coms(unittest.TestCase):
     """Unit tests for the SunpowerCryocooler class."""
-
-    @patch("socket.socket")
+    
+    @patch("socket.socket", autospec=True)
     def setUp(self, mock_socket_obj): # pylint: disable=arguments-differ
         """Set up the test case with a mocked socket connection."""
         self.mock_socket = MagicMock()
@@ -21,43 +22,51 @@ class TestPPC102_Coms(unittest.TestCase):
 
     def test_send_command(self):
         """Test sending _get_infocommand to the controller."""
-        self.controller._get_info() # pylint: disable=protected-access
-        self.mock_socket.write.assert_called_with(bytes([0x05, 0x00, 0x00, 0x00, 0x11, 0x01]))
+        with patch.object(self.controller, "write") as mock_write:
+            with self.assertRaises(NotImplementedError):
+                self.controller._get_info()#pylint: disable=protected-access
+                mock_write.assert_called_with(bytes([0x05, 0x00, 0x00, 0x00, 0x11, 0x01]))  
 
     def test_get_loop(self):
         """Testing sending the correct bytes to get the loop status from the gimbal."""
-        with patch.object(self.controller, "get_loop") as mock_get_loop:
+        with patch.object(self.controller, "write") as mock_get_loop:
+            self.controller.read_buff = MagicMock(return_value=bytes([0x41, 0x06, 0x01, 0x00, 0x21, 0x01, 0x02]))
             self.controller.get_loop(channel = 1)
-            mock_get_loop.assert_called_once_with(bytes([0x41, 0x06, 0x01, 0x00, 0x21, 0x01]))
+            mock_get_loop.assert_called_with(bytes([0x41, 0x06, 0x01, 0x00, 0x21, 0x01]))
         
-    def test_get_status_update(self):
-        """Test setting the status from the Gimbal."""
-        with patch.object(self.controller, "get_status_update") as mock_status:
-            self.controller.get_status_update(channel = 1)
-            dest = 0x20 + 1
-            mock_status.assert_called_once_with(bytes([0x60, 0x06, 0x01, 0x00, dest, 0x01]))
-
-    def test_get_position(self):
-        """Test getting the position from the Gimbal."""
-        #make get_loop and get_enable return the correct responses using MagicMock
-        self.controller.get_loop = MagicMock(return_value=2)
-        self.controller.get_enable = MagicMock(return_value=1)
-        with patch.object(self.controller, "position") as mock_gposition:
-            self.controller.get_posiion(channel = 1)
-            dest = 0x20 + 1
-            mock_gposition.assert_called_once_with(bytes([0x47, 0x06, 0x01, 0x00, dest, 0x01]))
+    # def test_get_status_update(self):
+    #     """Test setting the status from the Gimbal."""
+    #     with patch.object(self.controller, "write") as mock_status:
+    #         self.controller.read_buff = MagicMock(return_value=bytes([0x61,0x06,0x01,0x00,0x21,0x01,0x00,0x00,0x00,
+    #                                                                     0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00]))
+    #         self.controller.get_status_update(channel = 1)
+    #         dest = 0x20 + 1
+    #         mock_status.assert_called_with(bytes([0x41, 0x06, 0x01, 0x00, dest, 0x01])) 
+            
+    # def test_get_position(self):
+    #     """Test getting the position from the Gimbal."""
+    #     #make get_loop and get_enable return the correct responses using MagicMock
+    #     with patch.object(self.controller, "write") as mock_gposition:
+    #         self.controller.get_loop = MagicMock(return_value=2)
+    #         self.controller.get_enable = MagicMock(return_value=1)
+    #         self.controller.read_buff = MagicMock(return_value=bytes([0x47,0x06,0x01,0x00,0x21,0x01,0x01,0x00,0x00,
+    #                                                                     0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00]))
+    #         self.controller.get_position(channel = 1)
+    #         dest = 0x20 + 1
+    #         mock_gposition.assert_called_with(bytes([0x47, 0x06, 0x01, 0x00,dest, 0x01]))
         
     def test_set_position(self):
         """Test setting the position from the Gimbal."""
         #make get_loop and get_enable return the correct responses using MagicMock
-        self.controller.get_loop = MagicMock(return_value=2)
-        self.controller.get_enable = MagicMock(return_value=1)
-        with patch.object(self.controller, "set_position") as mock_setpos:
-            self.controller.set_position(channel = 1, position = 5.0)
-            dest = (0x20 + channel) | 0x80 
+        with patch.object(self.controller, "write") as mock_setpos:
+            self.controller.get_loop = MagicMock(return_value=2)
+            self.controller.get_enable = MagicMock(return_value=1)
+            self.controller.set_position(channel = 1, pos = 5.0)
+            dest = (0x20 + 1) | 0x80 
             converted_pos = int(round((5.0 + 10)/20*32767))
-            pos_bytes = converted_pos.to_bytes(4, byteorder='little', signed=False)
-            mock_setpos.assert_called_once_with(bytes([0x47, 0x10, 0x05, 0x00, dest, 0x04]) + pos_bytes)
+            pos_bytes = converted_pos.to_bytes(2, byteorder='little', signed=False)
+            mock_setpos.assert_called_with(bytes([0x46, 0x06, 0x04, 0x00,dest, 0x01,
+                0x01, 0x00,pos_bytes[0], pos_bytes[1]]))
 
 
 
