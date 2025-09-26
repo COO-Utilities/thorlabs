@@ -34,27 +34,7 @@ class TestPPC102_Coms(unittest.TestCase):
             self.controller.get_loop(channel = 1)
             mock_get_loop.assert_called_with(bytes([0x41, 0x06, 0x01, 0x00, 0x21, 0x01]))
         
-    # def test_get_status_update(self):
-    #     """Test setting the status from the Gimbal."""
-    #     with patch.object(self.controller, "write") as mock_status:
-    #         self.controller.read_buff = MagicMock(return_value=bytes([0x61,0x06,0x01,0x00,0x21,0x01,0x00,0x00,0x00,
-    #                                                                     0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00]))
-    #         self.controller.get_status_update(channel = 1)
-    #         dest = 0x20 + 1
-    #         mock_status.assert_called_with(bytes([0x41, 0x06, 0x01, 0x00, dest, 0x01])) 
-            
-    # def test_get_position(self):
-    #     """Test getting the position from the Gimbal."""
-    #     #make get_loop and get_enable return the correct responses using MagicMock
-    #     with patch.object(self.controller, "write") as mock_gposition:
-    #         self.controller.get_loop = MagicMock(return_value=2)
-    #         self.controller.get_enable = MagicMock(return_value=1)
-    #         self.controller.read_buff = MagicMock(return_value=bytes([0x47,0x06,0x01,0x00,0x21,0x01,0x01,0x00,0x00,
-    #                                                                     0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00]))
-    #         self.controller.get_position(channel = 1)
-    #         dest = 0x20 + 1
-    #         mock_gposition.assert_called_with(bytes([0x47, 0x06, 0x01, 0x00,dest, 0x01]))
-        
+
     def test_set_position(self):
         """Test setting the position from the Gimbal."""
         #make get_loop and get_enable return the correct responses using MagicMock

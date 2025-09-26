@@ -3,7 +3,7 @@
 #################
 
 import pytest
-pytestmark = pytest.mark.skip("Exclude from default pytest runs")
+#pytestmark = pytest.mark.skip("Exclude from default pytest runs")
 import sys
 import os
 import unittest
@@ -21,8 +21,8 @@ class Default_Test(unittest.TestCase):
     def setUp(self):
         self.dev = None
         self.success = True
-        self.IP = ''
-        self.port = 10013
+        self.IP = '192.168.29.100'
+        self.port = 10012
         self.log = False
         self.error_tolerance = 0.1
 
@@ -38,7 +38,7 @@ class Default_Test(unittest.TestCase):
         dev = PPC102_Coms(IP=bad_ip, port=bad_port, log=self.log)
 
         success = dev.open()
-        self.assertFalse(dev.sock, "Expected connection failure with invalid IP/port")
+        self.assertFalse(success, "Expected connection failure with invalid IP/port")
         dev.close()
 
     

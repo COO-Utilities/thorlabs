@@ -3,7 +3,7 @@
 #################
 
 import pytest
-pytestmark = pytest.mark.skip("Exclude from default pytest runs")
+#pytestmark = pytest.mark.skip("Exclude from default pytest runs")
 import sys
 import os
 import unittest
@@ -18,13 +18,13 @@ from ppc102 import PPC102_Coms
 class Comms_Test(unittest.TestCase):
 
     #Instances for Test management
-    def setUp(self):
-        self.dev = None
-        self.success = True
-        self.IP = ''
-        self.port = 10013
-        self.log = False
-        self.error_tolerance = 0.1
+    #def setUp(self):
+    dev = None
+    success = True
+    IP = '192.168.29.100'
+    port = 10012
+    log = False
+    error_tolerance = 0.1
 
     ##########################
     ## Servos / Loops [ Not really applicable]
