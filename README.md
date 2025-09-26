@@ -71,6 +71,9 @@ help(fw102c)
 ## 🧪 Testing
 Unit tests are located in `tests/` directory.
 
+TODO: Make "Mock test" for PPC102 get_position and get_status which threw errors and was removed. 
+    Assumed to be due to the byte and int convertion
+
 To run all tests from the project root:
 
 ```bash

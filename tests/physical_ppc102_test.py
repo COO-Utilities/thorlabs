@@ -4,12 +4,12 @@
 
 
 import pytest
-pytestmark = pytest.mark.skip("Exclude from default pytest runs")
+#pytestmark = pytest.mark.skip("Exclude from default pytest runs")
 import sys
 import os
 import unittest
 import time 
-from thorlabs.ppc102 import PPC102_Coms
+from ppc102 import PPC102_Coms
 
 ##########################
 ## CONFIG
@@ -21,8 +21,8 @@ class Physical_Test(unittest.TestCase):
     def setUp(self):
         self.dev = None
         self.success = True
-        self.IP = ''
-        self.port = 10013
+        self.IP = '192.168.29.100'
+        self.port = 10012
         self.log = False
         self.error_tolerance = 0.1
 
@@ -99,7 +99,7 @@ class Physical_Test(unittest.TestCase):
     ## Position Query and Movement
     ##########################
     def test_position_query_and_movement(self):
-        self.dev = #Controller/Library for the device
+        self.dev = PPC102_Coms(IP=self.IP, port = self.port,log = self.log)
         self.dev.open()
         time.sleep(.25)
         for ch in [1,2]:  # Check for channels that are applicable
@@ -110,7 +110,7 @@ class Physical_Test(unittest.TestCase):
             ret = self.dev.get_loop(channel=ch)
             assert ret == self.dev.CLOSED_LOOP
             # Set position and assert
-            assert self.dev.set_position(channel=ch, position=0)
+            assert self.dev.set_position(channel=ch, pos=0)
             time.sleep(.2)
             # Get position and assert
             ret = self.dev.get_position(channel=ch)
@@ -118,13 +118,13 @@ class Physical_Test(unittest.TestCase):
             original_position = ret
             print(f"Channel {ch} Original Position: {original_position}")
             # Set position and assert with Error Tolerance x2
-            assert self.dev.set_position(channel=ch, position=5.0)
+            assert self.dev.set_position(channel=ch, pos=5.0)
             time.sleep(.2)
             ret = self.dev.get_position(channel=ch)
             assert abs(ret - 5.0) < self.error_tolerance*2
             print(f"Channel {ch} New Position: {ret}")
             # Set position back to default
-            assert self.dev.set_position(channel=ch, position=original_position)
+            assert self.dev.set_position(channel=ch, pos=original_position)
             time.sleep(.2)
             ret = self.dev.get_position(channel=ch)
             assert abs(ret - original_position) < self.error_tolerance*2
