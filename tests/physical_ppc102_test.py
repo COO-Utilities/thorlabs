@@ -1,10 +1,10 @@
 #################
-#Outline Robust and Communication Tests
+#Outline Robust and Communication Tests (Integeration Tests)
 #################
 
 
 import pytest
-#pytestmark = pytest.mark.skip("Exclude from default pytest runs")
+pytestmark = pytest.mark.integration
 import sys
 import os
 import unittest

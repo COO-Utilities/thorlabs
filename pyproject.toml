@@ -32,6 +32,11 @@ dev = [
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
+markers = [
+    "default: marks tests as default run set",
+    "unit: marks tests as unit tests",
+    "integration: marks tests as integration tests",
+]
 
 [tool.setuptools.packages.find]
 # find packages under the "thorlabs" namespace

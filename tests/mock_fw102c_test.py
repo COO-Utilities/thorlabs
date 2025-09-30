@@ -2,6 +2,9 @@
 import unittest
 from unittest.mock import patch, MagicMock
 from fw102c import FilterWheelController
+import pytest
+pytestmark = pytest.mark.unit
+
 
 class TestFilterWheelController(unittest.TestCase):
     """Unit tests for the FilterWheelController class."""
