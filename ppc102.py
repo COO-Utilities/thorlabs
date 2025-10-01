@@ -227,6 +227,7 @@ class PPC102_Coms(object):
             loopq = bytes([0x41, 0x06, 0x01, 0x00, 0x21, 0x01])
             #counter for number of failed responses
             message_list = [enableq, posq, loopq]
+            counter = 0
             for message in message_list:
                 self.write(message)
                 time.sleep(self.DELAY)
@@ -1203,7 +1204,7 @@ class PPC102_Coms(object):
                 raise ValueError("Channel must be 1 or 2")
             
             #Convert User friendly volt units to controller expected decavolt units
-            limit = limit * 10
+            limit = int(limit * 10)
             
             destination = (0x20 + channel) | 0x80 
             

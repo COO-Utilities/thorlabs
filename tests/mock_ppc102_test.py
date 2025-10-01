@@ -1,9 +1,10 @@
-"""Test suite for the PPC102 Coms class in hispec.util module."""
 import unittest
 from unittest.mock import patch, MagicMock
 # pylint: disable=import-error,no-name-in-module
 from ppc102 import PPC102_Coms
 import time
+import pytest
+pytestmark = pytest.mark.unit
 
 
 class TestPPC102_Coms(unittest.TestCase):

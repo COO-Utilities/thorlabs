@@ -3,7 +3,7 @@
 #################
 
 import pytest
-pytestmark = pytest.mark.skip("Exclude from default pytest runs")
+pytestmark = pytest.mark.default
 import sys
 import os
 import unittest
@@ -62,6 +62,21 @@ class Default_Test(unittest.TestCase):
         assert self.dev.success is False, "Expected connection failure with invalid IP/port"
         assert self.dev.connected is False, "Expected not connected state with invalid IP/port"
         self.assertFalse(dev.connected, "Expected connection failure with invalid IP/port")
+        self.dev.disconnect()
+        time.sleep(.25)
+
+    ##########################
+    ## Inicialize test
+    ##########################
+    def inicialize(self):
+        self.dev = FilterWheelController(log = self.log)
+        self.dev.set_connection(ip=self.IP, port=self.port)
+        self.dev.connect()
+        time.sleep(.25)
+        self.dev.initialize()
+        time.sleep(.25)
+        assert self.dev.initialized
+        assert self.dev.revision is not None
         self.dev.disconnect()
         time.sleep(.25)
 
