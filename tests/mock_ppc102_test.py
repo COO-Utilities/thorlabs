@@ -1,4 +1,3 @@
-"""Test suite for the PPC102 Coms class in hispec.util module."""
 import unittest
 from unittest.mock import patch, MagicMock
 # pylint: disable=import-error,no-name-in-module
