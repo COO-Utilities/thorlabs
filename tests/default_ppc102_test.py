@@ -1,5 +1,6 @@
 #################
-#Outline Robust and Communication Tests
+#Default Communication test
+#Description: Test connection, disconnection and confirming communication with stage
 #################
 
 import pytest
@@ -21,7 +22,7 @@ class Comms_Test(unittest.TestCase):
     #def setUp(self):
     dev = None
     success = True
-    IP = '192.168.29.100'
+    ip = '192.168.29.100'
     port = 10012
     log = False
     error_tolerance = 0.1
@@ -32,7 +33,7 @@ class Comms_Test(unittest.TestCase):
     def test_loop(self):
         time.sleep(.2)
         # Open connection     
-        self.dev = PPC102_Coms(IP=self.IP, port = self.port,log = self.log)
+        self.dev = PPC102_Coms(ip=self.ip, port = self.port,log = self.log)
         time.sleep(.2)
         self.dev.open()
         time.sleep(.25)
@@ -71,14 +72,14 @@ class Comms_Test(unittest.TestCase):
     ## Negative test: failed connect
     ##########################
     def failed_connect_test(self):
-        # Use an unreachable IP (TEST-NET-1 range, reserved for docs/testing)
+        # Use an unreachable ip (TEST-NET-1 range, reserved for docs/testing)
         bad_ip = "192.1.2.123"
         bad_port = 65535  # usually blocked/unusable
 
-        dev = PPC102_Coms(IP=bad_ip, port=bad_port, log=self.log)
+        dev = PPC102_Coms(ip=bad_ip, port=bad_port, log=self.log)
 
         success = dev.open()
-        self.assertFalse(success, "Expected connection failure with invalid IP/port")
+        self.assertFalse(success, "Expected connection failure with invalid ip/port")
         dev.close()
 
     ##########################
@@ -86,7 +87,7 @@ class Comms_Test(unittest.TestCase):
     ##########################
     def test_limit(self):
          # Open connection     
-        self.dev = PPC102_Coms(IP=self.IP, port = self.port,log = self.log)
+        self.dev = PPC102_Coms(ip=self.ip, port = self.port,log = self.log)
         time.sleep(.2)
         self.dev.open()
         time.sleep(.25)
@@ -111,7 +112,7 @@ class Comms_Test(unittest.TestCase):
     ## Position Query and Movement
     ##########################
     def test_position_query(self):
-        self.dev = PPC102_Coms(IP=self.IP, port = self.port,log = self.log)
+        self.dev = PPC102_Coms(ip=self.ip, port = self.port,log = self.log)
         self.dev.open()
         time.sleep(.25)
         for ch in [1,2]:  # Check for channels that are applicable
@@ -137,7 +138,7 @@ class Comms_Test(unittest.TestCase):
     ## Status Communication
     ##########################
     def status_communication(self):
-        self.dev = PPC102_Coms(IP=self.IP, port = self.port,log = self.log)
+        self.dev = PPC102_Coms(ip=self.ip, port = self.port,log = self.log)
         self.dev.open()
         time.sleep(.25)
         for ch in [1,2]:  # Check for channels that are applicable

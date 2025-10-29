@@ -1,9 +1,12 @@
 #################
-#Outline Robust and Communication Tests (Integeration Tests)
+#Functionality test
+#Description: Test connection, disconnection, confirming communication with stage,
+#               inicialization(or something similar) and movement/position query
+#               tests are successful and correct
 #################
 
 import pytest
-pytestmark = pytest.mark.integration
+pytestmark = pytest.mark.functional
 import sys
 import os
 import unittest
@@ -20,7 +23,7 @@ class Physical_Test(unittest.TestCase):
     def setUp(self):
         self.dev = None
         self.success = True
-        self.IP = '192.168.29.100'
+        self.ip = '192.168.29.100'
         self.port = 10012
         self.log = False
         self.error_tolerance = 0.1
@@ -32,7 +35,7 @@ class Physical_Test(unittest.TestCase):
     def test_loop(self):
         time.sleep(.2)
         # Open connection     
-        self.dev = PPC102_Coms(IP=self.IP, port = self.port,log = self.log)
+        self.dev = PPC102_Coms(ip=self.ip, port = self.port,log = self.log)
         time.sleep(.2)
         self.dev.open()
         time.sleep(.25)
@@ -73,7 +76,7 @@ class Physical_Test(unittest.TestCase):
     ##########################
     def test_limit(self):
          # Open connection     
-        self.dev = PPC102_Coms(IP=self.IP, port = self.port,log = self.log)
+        self.dev = PPC102_Coms(ip=self.ip, port = self.port,log = self.log)
         time.sleep(.2)
         self.dev.open()
         time.sleep(.25)
@@ -98,7 +101,7 @@ class Physical_Test(unittest.TestCase):
     ## Position Query and Movement
     ##########################
     def test_position_query_and_movement(self):
-        self.dev = PPC102_Coms(IP=self.IP, port = self.port,log = self.log)
+        self.dev = PPC102_Coms(ip=self.ip, port = self.port,log = self.log)
         self.dev.open()
         time.sleep(.25)
         for ch in [1,2]:  # Check for channels that are applicable
@@ -117,10 +120,10 @@ class Physical_Test(unittest.TestCase):
             original_position = ret
             print(f"Channel {ch} Original Position: {original_position}")
             # Set position and assert with Error Tolerance x2
-            assert self.dev.set_position(channel=ch, pos=5.0)
+            assert self.dev.set_position(channel=ch, pos=1.0)
             time.sleep(.2)
             ret = self.dev.get_position(channel=ch)
-            assert abs(ret - 5.0) < self.error_tolerance*2
+            assert abs(ret - 1.0) < self.error_tolerance*2
             print(f"Channel {ch} New Position: {ret}")
             # Set position back to default
             assert self.dev.set_position(channel=ch, pos=original_position)

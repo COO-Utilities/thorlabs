@@ -1,3 +1,8 @@
+#################
+#Unit test
+#Description: Validate software functions are correctly implemented via mocking
+#################
+
 """Test suite for the FilterWheel class in hispec.util module."""
 import unittest
 from unittest.mock import patch, MagicMock

@@ -1,10 +1,13 @@
 #################
-#Outline Robust and Communication Tests
+#Functionality test
+#Description: Test connection, disconnection, confirming communication with stage,
+#               inicialization(or something similar) and movement/position query
+#               tests are successful and correct
 #################
 
 
 import pytest
-pytestmark = pytest.mark.integration
+pytestmark = pytest.mark.functional
 import sys
 import os
 import unittest
@@ -22,8 +25,8 @@ class Physical_Test(unittest.TestCase):
     def setUp(self):
         self.dev = FilterWheelController()
         self.success = True
-        self.IP = ''
-        self.port = 1
+        self.ip = '192.168.29.100'
+        self.port = 10010
         self.log = False
         self.error_tolerance = 0.1
 
@@ -34,7 +37,7 @@ class Physical_Test(unittest.TestCase):
         time.sleep(.2)
         # Open connection     
         self.dev = FilterWheelController(log = self.log)
-        self.dev.set_connection(ip=self.IP, port=self.port)
+        self.dev.set_connection(ip=self.ip, port=self.port)
         assert self.dev.status is None
         self.dev.connect()
         time.sleep(.25)
@@ -52,7 +55,7 @@ class Physical_Test(unittest.TestCase):
     ##########################
     def inicialize(self):
         self.dev = FilterWheelController(log = self.log)
-        self.dev.set_connection(ip=self.IP, port=self.port)
+        self.dev.set_connection(ip=self.ip, port=self.port)
         self.dev.connect()
         time.sleep(.25)
         self.dev.initialize()
@@ -67,7 +70,7 @@ class Physical_Test(unittest.TestCase):
     ##########################
     def test_position_query_and_movement(self):
         self.dev = FilterWheelController(log = self.log)
-        self.dev.set_connection(ip=self.IP, port=self.port)
+        self.dev.set_connection(ip=self.ip, port=self.port)
         self.dev.connect()
         time.sleep(.25)
         self.dev.initialize()
@@ -76,18 +79,18 @@ class Physical_Test(unittest.TestCase):
         time.sleep(.25)
         ret = int(self.dev.get_position())
         assert ret == 1
-        self.dev.move(target=50)
+        self.dev.move(target=2)
         time.sleep(.25)
         ret = int(self.dev.get_position())
-        assert ret == 50
-        self.dev.move(target=99)
+        assert ret == 2
+        self.dev.move(target=5)
         time.sleep(.25)
         ret = int(self.dev.get_position())
-        assert ret == 99
-        self.dev.move(target=0)
+        assert ret == 5
+        self.dev.move(target=1)
         time.sleep(.25)
         ret = int(self.dev.get_position())
-        assert ret == 0
+        assert ret == 1
         #Close connection
         self.dev.disconnect()
         time.sleep(.25)
