@@ -16,7 +16,7 @@ class TestPPC102_Coms(unittest.TestCase):
         self.mock_socket = MagicMock()
         mock_socket_obj.return_value = self.mock_socket
         self.mock_socket.read.return_value = b""
-        self.controller = PPC102_Coms(IP="123.456.789.101", port=1234, log=False)
+        self.controller = PPC102_Coms(ip="123.456.789.101", port=1234, log=False)
         self.controller.sock = self.mock_socket
         self.controller.get_loop()
 

@@ -21,7 +21,7 @@ class Default_Test(unittest.TestCase):
     def setUp(self):
         self.dev = FilterWheelController()
         self.success = True
-        self.IP = ''
+        self.ip = ''
         self.port = 1
         self.log = False
         self.error_tolerance = 0.1
@@ -33,7 +33,7 @@ class Default_Test(unittest.TestCase):
         time.sleep(.2)
         # Open connection     
         self.dev = FilterWheelController(log = self.log)
-        self.dev.set_connection(ip=self.IP, port=self.port)
+        self.dev.set_connection(ip=self.ip, port=self.port)
         assert self.dev.status is None
         self.dev.connect()
         time.sleep(.25)
@@ -51,7 +51,7 @@ class Default_Test(unittest.TestCase):
     ## Negative test: failed connect
     ##########################
     def failed_connect_test(self):
-        # Use an unreachable IP (TEST-NET-1 range, reserved for docs/testing)
+        # Use an unreachable ip (TEST-NET-1 range, reserved for docs/testing)
         bad_ip = "192.1.2.123"
         bad_port = 65535  # usually blocked/unusable
 
@@ -59,9 +59,9 @@ class Default_Test(unittest.TestCase):
         self.dev.set_connection(ip=bad_ip, port=bad_port)
         self.dev.connect()
         time.sleep(.25)
-        assert self.dev.success is False, "Expected connection failure with invalid IP/port"
-        assert self.dev.connected is False, "Expected not connected state with invalid IP/port"
-        self.assertFalse(dev.connected, "Expected connection failure with invalid IP/port")
+        assert self.dev.success is False, "Expected connection failure with invalid ip/port"
+        assert self.dev.connected is False, "Expected not connected state with invalid ip/port"
+        self.assertFalse(dev.connected, "Expected connection failure with invalid ip/port")
         self.dev.disconnect()
         time.sleep(.25)
 
@@ -70,7 +70,7 @@ class Default_Test(unittest.TestCase):
     ##########################
     def inicialize(self):
         self.dev = FilterWheelController(log = self.log)
-        self.dev.set_connection(ip=self.IP, port=self.port)
+        self.dev.set_connection(ip=self.ip, port=self.port)
         self.dev.connect()
         time.sleep(.25)
         self.dev.initialize()

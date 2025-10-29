@@ -33,7 +33,6 @@ class FilterWheelController:
         self.logger = logging.getLogger(logname)
         self.logger.setLevel(logging.DEBUG)
         if log:
-            self.logger.addHandler(FileHandler)
             log_handler = logging.FileHandler(logname + ".log")
             formatter = logging.Formatter(
                 "%(asctime)s--%(name)s--%(levelname)s--%(module)s--"

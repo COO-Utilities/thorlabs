@@ -3,7 +3,7 @@
 #################
 
 import pytest
-pytestmark = pytest.mark.integration
+pytestmark = pytest.mark.functional
 import sys
 import os
 import unittest
@@ -20,7 +20,7 @@ class Physical_Test(unittest.TestCase):
     def setUp(self):
         self.dev = None
         self.success = True
-        self.IP = '192.168.29.100'
+        self.ip = '192.168.29.100'
         self.port = 10012
         self.log = False
         self.error_tolerance = 0.1
@@ -32,7 +32,7 @@ class Physical_Test(unittest.TestCase):
     def test_loop(self):
         time.sleep(.2)
         # Open connection     
-        self.dev = PPC102_Coms(IP=self.IP, port = self.port,log = self.log)
+        self.dev = PPC102_Coms(ip=self.ip, port = self.port,log = self.log)
         time.sleep(.2)
         self.dev.open()
         time.sleep(.25)
@@ -73,7 +73,7 @@ class Physical_Test(unittest.TestCase):
     ##########################
     def test_limit(self):
          # Open connection     
-        self.dev = PPC102_Coms(IP=self.IP, port = self.port,log = self.log)
+        self.dev = PPC102_Coms(ip=self.ip, port = self.port,log = self.log)
         time.sleep(.2)
         self.dev.open()
         time.sleep(.25)
@@ -98,7 +98,7 @@ class Physical_Test(unittest.TestCase):
     ## Position Query and Movement
     ##########################
     def test_position_query_and_movement(self):
-        self.dev = PPC102_Coms(IP=self.IP, port = self.port,log = self.log)
+        self.dev = PPC102_Coms(ip=self.ip, port = self.port,log = self.log)
         self.dev.open()
         time.sleep(.25)
         for ch in [1,2]:  # Check for channels that are applicable

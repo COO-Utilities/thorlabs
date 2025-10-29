@@ -45,7 +45,7 @@ class PPC102_Coms(object):
         - The output of the device depends solely on the 'enable' bit
     '''
 
-    def __init__(self, IP: str, port: int, timeout: float= 2.0, 
+    def __init__(self, ip: str, port: int, timeout: float= 2.0, 
                                                             log: bool = True):
         '''
             Create socket connection instance variable
@@ -59,7 +59,6 @@ class PPC102_Coms(object):
         self.logger = logging.getLogger(logname)
         self.logger.setLevel(logging.DEBUG)
         if log:
-            self.logger.addHandler(FileHandler)
             log_handler = logging.FileHandler(logname + ".log")
             formatter = logging.Formatter(
                 "%(asctime)s--%(name)s--%(levelname)s--%(module)s--"
@@ -75,7 +74,7 @@ class PPC102_Coms(object):
         self.logger.info("Logger initialized for PPC102_Coms")
 
         # get coms
-        self.IP = IP
+        self.ip = ip
         self.port = port
         self.timeout = timeout
         self.sock = None
@@ -105,8 +104,8 @@ class PPC102_Coms(object):
         try:
             self.sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
             self.sock.settimeout(self.timeout)
-            self.sock.connect((self.IP, self.port))
-            self.logger.info(f"Connected to {self.IP}:{self.port}")
+            self.sock.connect((self.ip, self.port))
+            self.logger.info(f"Connected to {self.ip}:{self.port}")
             self.logger.info("Preliminary read_buff to clear buffer: " \
                                 "Sometimes inicializes with 0x00 in buffer")
             # silent this single read buff execution!!!
