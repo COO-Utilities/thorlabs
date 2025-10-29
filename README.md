@@ -74,8 +74,16 @@ Unit tests are located in `tests/` directory.
 TODO: Make "Mock test" for PPC102 get_position and get_status which threw errors and was removed. 
     Assumed to be due to the byte and int convertion
 
-To run all tests from the project root:
-
+To run tests from the project root based on what you need:
+Software check:
 ```bash
-pytest
+pytest -m unit
+```
+Connection Test:
+```bash
+pytest -m default
+```
+Functionality Test:
+```bash
+pytest -m functional
 ```

@@ -1,3 +1,8 @@
+#################
+#Unit test
+#Description: Validate software functions are correctly implemented via mocking
+#################
+
 import unittest
 from unittest.mock import patch, MagicMock
 # pylint: disable=import-error,no-name-in-module
