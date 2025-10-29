@@ -21,8 +21,8 @@ class Default_Test(unittest.TestCase):
     def setUp(self):
         self.dev = FilterWheelController()
         self.success = True
-        self.ip = ''
-        self.port = 1
+        self.ip = '192.168.29.100'
+        self.port = 10010
         self.log = False
         self.error_tolerance = 0.1
 

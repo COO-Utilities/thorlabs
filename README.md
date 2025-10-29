@@ -37,7 +37,7 @@ help(fw102c)
     from hispec.util.thorlabs.ppc102 import PPC102_Coms
 
     # log = false will now print to command line
-    dev =  PPC102_Coms(IP="",port="",log=False)
+    dev =  PPC102_Coms(ip="",port="",log=False)
 
     #Open connection
     dev.open()

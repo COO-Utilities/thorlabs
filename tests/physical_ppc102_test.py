@@ -117,10 +117,10 @@ class Physical_Test(unittest.TestCase):
             original_position = ret
             print(f"Channel {ch} Original Position: {original_position}")
             # Set position and assert with Error Tolerance x2
-            assert self.dev.set_position(channel=ch, pos=5.0)
+            assert self.dev.set_position(channel=ch, pos=1.0)
             time.sleep(.2)
             ret = self.dev.get_position(channel=ch)
-            assert abs(ret - 5.0) < self.error_tolerance*2
+            assert abs(ret - 1.0) < self.error_tolerance*2
             print(f"Channel {ch} New Position: {ret}")
             # Set position back to default
             assert self.dev.set_position(channel=ch, pos=original_position)
