@@ -45,7 +45,7 @@ class PPC102_Coms(object):
         - The output of the device depends solely on the 'enable' bit
     '''
 
-    def __init__(self, ip: str, port: int, timeout: float= 2.0, 
+    def __init__(self, ip: str = "", port: int = 0, timeout: float= 2.0, 
                                                             log: bool = True):
         '''
             Create socket connection instance variable
@@ -89,6 +89,15 @@ class PPC102_Coms(object):
         self.CHAN_DISABLED = 2
 
     ########### Socket Communitcations ###########
+    def set_connection(self, ip: str, port: int):
+        '''
+            Sets the connection parameters for the device
+            ip: IP address of device
+            port: Port number of device
+        '''
+        self.ip = ip
+        self.port = port
+
     def open(self):
         '''
             Opens connection to device
