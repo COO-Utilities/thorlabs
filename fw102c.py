@@ -23,7 +23,7 @@ class FilterWheelController(HardwareMotionBase):
     revision = None
     success = False
 
-    def __init__(self, log=True, logfile=None, quiet=False):
+    def __init__(self, log: bool = True, logfile: str = __name__.rsplit(".", 1)[-1], quiet=False):
 
         self.lock = threading.Lock()
         self.socket = None
