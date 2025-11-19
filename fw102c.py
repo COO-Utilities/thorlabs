@@ -62,7 +62,7 @@ class FilterWheelController(HardwareMotionBase):
 
         self.set_status("disconnected")
 
-    def connect(self):
+    def connect(self): # pylint: disable=unused-argument
         """ Connect to controller. """
         if self.socket is None:
             self.socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
@@ -179,7 +179,7 @@ class FilterWheelController(HardwareMotionBase):
         self.initialized = True
 
 
-    def _send_command(self, command):
+    def _send_command(self, command): # pylint: disable=unused-argument
         """ Wrapper to issue_command(), ensuring the command lock is
             released if an exception occurs.
 
@@ -346,11 +346,11 @@ class FilterWheelController(HardwareMotionBase):
         """Get the position of the hardware motion device."""
         return int(self.get_position())
     
-    def set_pos(self, pos: int):
+    def set_pos(self, pos: int): # pylint: disable=unused-argument
         """Set the position of the hardware motion device."""
         try:
             self.move(pos)
-        except Exception as e:
+        except Exception as e: # pylint: disable=unused-argument
             self.logger.error(f"Error: {e}")
             return False
         return True
