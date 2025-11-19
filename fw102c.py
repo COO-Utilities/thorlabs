@@ -6,9 +6,9 @@ import logging
 import socket
 import threading
 import time
+from hardware_device_base import HardwareMotionBase
 
-
-class FilterWheelController:
+class FilterWheelController(HardwareMotionBase):
     """ Handle all correspondence with the serial interface of the
         Thorlabs FW102C filter wheel.
     """
@@ -23,27 +23,13 @@ class FilterWheelController:
     revision = None
     success = False
 
-    def __init__(self, log=True, logfile=None, quiet=False):
+    def __init__(self, log: bool = True, logfile: str = __name__.rsplit(".", 1)[-1], quiet=False):
 
         self.lock = threading.Lock()
         self.socket = None
 
-        # Logger setup
-        logname = __name__.rsplit(".", 1)[-1]
-        self.logger = logging.getLogger(logname)
-        self.logger.setLevel(logging.DEBUG)
-        if log:
-            log_handler = logging.FileHandler(logname + ".log")
-            formatter = logging.Formatter(
-                "%(asctime)s--%(name)s--%(levelname)s--%(module)s--"
-                "%(funcName)s--%(message)s")
-            log_handler.setFormatter(formatter)
-            self.logger.addHandler(log_handler)
-        # Console handler for real-time output
-        console_handler = logging.StreamHandler()
-        console_formatter = logging.Formatter("%(asctime)s--%(message)s")
-        console_handler.setFormatter(console_formatter)
-        self.logger.addHandler(console_handler)
+        #initialize Logging through Harware Base Class
+        super().__init__(log=log,logfile=logfile)
 
     def set_connection(self, ip=None, port=None):
         """ Configure the connection to the controller.
@@ -76,7 +62,7 @@ class FilterWheelController:
 
         self.set_status("disconnected")
 
-    def connect(self):
+    def connect(self): # pylint: disable=unused-argument
         """ Connect to controller. """
         if self.socket is None:
             self.socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
@@ -107,6 +93,7 @@ class FilterWheelController:
         # clear socket
         if self.connected:
             self.__clear_socket()
+    
 
     def __clear_socket(self):
         """ Clear socket buffer. """
@@ -129,6 +116,7 @@ class FilterWheelController:
             status = 'ready'
 
         self.set_status(status)
+        return (0, status)
 
 
     def set_status(self, status):
@@ -155,43 +143,43 @@ class FilterWheelController:
         save = False
 
         # Give it an initial dummy command to flush out the buffer.
-        self.command('*idn?')
+        self._send_command('*idn?')
 
-        self.revision = self.command('*idn?')
+        self.revision = self._send_command('*idn?')
 
         # Turn off the position sensors when the wheel is
         # idle to mitigate stray light.
 
-        sensors = self.command('sensors?')
+        sensors = self._send_command('sensors?')
 
         if sensors != '0':
-            self.command('sensors=0')
+            self._send_command('sensors=0')
             save = True
 
         # Make sure the wheel is set to move at "high" speed,
         # which takes ~3 seconds to rotate 180 degrees.
 
-        speed = self.command('speed?')
+        speed = self._send_command('speed?')
 
         if speed != '1':
-            self.command('speed=1')
+            self._send_command('speed=1')
             save = True
 
         # Make sure the external trigger is in 'output' mode.
 
-        trigger = self.command('trig?')
+        trigger = self._send_command('trig?')
 
         if trigger != '1':
-            self.command('trig=1')
+            self._send_command('trig=1')
             save = True
 
         if save is True:
-            self.command('save')
+            self._send_command('save')
 
         self.initialized = True
 
 
-    def command(self, command):
+    def _send_command(self, command): # pylint: disable=unused-argument
         """ Wrapper to issue_command(), ensuring the command lock is
             released if an exception occurs.
 
@@ -201,7 +189,7 @@ class FilterWheelController:
 
         with self.lock:
             try:
-                result = self.issue_command(command)
+                result = self.__issue_command(command)
                 self.success = True
             finally:
                 # Ensure that status is always checked, even on failure
@@ -209,7 +197,7 @@ class FilterWheelController:
 
         return result
 
-    def issue_command(self, command):
+    def __issue_command(self, command):
         """ Wrapper to send/receive with error checking and retries.
 
         :param command: String, command to issue.
@@ -305,7 +293,7 @@ class FilterWheelController:
 
     def get_position(self):
         """ Get the current position from the controller."""
-        return self.command('pos?')
+        return self._send_command('pos?')
 
     def move(self, target):
         """ Move the filter wheel to the target position.
@@ -319,7 +307,7 @@ class FilterWheelController:
         target = int(target)
         command = f"pos={target:d}"
 
-        response = self.command(command)
+        response = self._send_command(command)
 
         if response is not None:
             raise RuntimeError(f"error response to command: {response}")
@@ -329,5 +317,47 @@ class FilterWheelController:
         if current != target:
             raise RuntimeError(
                 f"wound up at position {current:d} instead of commanded {target:d}")
+
+    #Required abstract baseclass methods
+    def _read_reply(self):
+        """Receive a reply from the device.
+        :return: The reply or None if no reply was received."""
+        #Not needed for this device
+        return NotImplemented
+    
+    #abstract Motion methods below     
+    def close_loop(self):
+        """Close the loop for the hardware motion device."""
+        return NotImplemented
+    
+    def is_closed_loop(self):
+        """Check if the hardware motion device is closed loop."""
+        return NotImplemented
+    
+    def home(self):
+        """Home the hardware motion device."""
+        return NotImplemented
+    
+    def is_homed(self):
+        """Check if the hardware motion device is homed."""
+        return NotImplemented
+    
+    def get_pos(self):
+        """Get the position of the hardware motion device."""
+        return int(self.get_position())
+    
+    def set_pos(self, pos: int): # pylint: disable=unused-argument
+        """Set the position of the hardware motion device."""
+        try:
+            self.move(pos)
+        except Exception as e: # pylint: disable=unused-argument
+            self.logger.error(f"Error: {e}")
+            return False
+        return True
+
+    def get_limits(self):
+        """Get the limits of the hardware motion device."""
+        return NotImplemented
+
 
 # end of class Controller
