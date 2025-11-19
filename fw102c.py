@@ -348,8 +348,12 @@ class FilterWheelController(HardwareMotionBase):
     
     def set_pos(self, pos: int):
         """Set the position of the hardware motion device."""
-        self.move(pos)
-        return None
+        try:
+            self.move(pos)
+        except Exception as e:
+            self.logger.error(f"Error: {e}")
+            return False
+        return True
 
     def get_limits(self):
         """Get the limits of the hardware motion device."""
