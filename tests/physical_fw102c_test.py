@@ -75,21 +75,21 @@ class Physical_Test(unittest.TestCase):
         time.sleep(.25)
         self.dev.initialize()
         # Set position and assert
-        self.dev.move(target=1)
+        self.dev.set_pos(pos=1)
         time.sleep(.25)
-        ret = int(self.dev.get_position())
+        ret = self.dev.get_pos()
         assert ret == 1
-        self.dev.move(target=2)
+        self.dev.set_pos(pos=2)
         time.sleep(.25)
-        ret = int(self.dev.get_position())
+        ret = self.dev.get_pos()
         assert ret == 2
-        self.dev.move(target=5)
+        self.dev.set_pos(pos=5)
         time.sleep(.25)
-        ret = int(self.dev.get_position())
+        ret = self.dev.get_pos()
         assert ret == 5
-        self.dev.move(target=1)
+        self.dev.set_pos(pos=1)
         time.sleep(.25)
-        ret = int(self.dev.get_position())
+        ret = self.dev.get_pos()
         assert ret == 1
         #Close connection
         self.dev.disconnect()
