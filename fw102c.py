@@ -2,44 +2,30 @@
 """ Thorlabs FW102C controller class """
 
 from errno import ETIMEDOUT, EISCONN
-import logging
 import socket
 import threading
 import time
+from typing import Union
+
 from hardware_device_base import HardwareMotionBase
 
 class FilterWheelController(HardwareMotionBase):
     """ Handle all correspondence with the serial interface of the
         Thorlabs FW102C filter wheel.
     """
-
-
-    connected = False
-    status = None
-    ip = ''
+    host = ''
     port = 0
 
     initialized = False
     revision = None
-    success = False
 
-    def __init__(self, log: bool = True, logfile: str = __name__.rsplit(".", 1)[-1], quiet=False):
+    def __init__(self, log: bool = True, logfile: str = __name__.rsplit(".", 1)[-1]):
 
         self.lock = threading.Lock()
         self.socket = None
 
         #initialize Logging through Harware Base Class
         super().__init__(log=log,logfile=logfile)
-
-    def set_connection(self, ip=None, port=None):
-        """ Configure the connection to the controller.
-
-        :param ip: String, IP address of the controller.
-        :param port: Int, port number of the controller.
-
-        """
-        self.ip = ip
-        self.port = port
 
     def disconnect(self):
         """ Disconnect controller. """
@@ -50,52 +36,39 @@ class FilterWheelController(HardwareMotionBase):
             self.socket = None
             if self.logger:
                 self.logger.debug("Disconnected controller")
-            self.connected = False
-            self.success = True
+            self._set_connected (False)
 
         except OSError as e:
             if self.logger:
                 self.logger.error("Disconnection error: %s", e.strerror)
-            self.connected = False
+            self._set_connected(False)
             self.socket = None
-            self.success = False
 
-        self.set_status("disconnected")
 
-    def connect(self): # pylint: disable=unused-argument
+    def connect(self, host, port): # pylint: disable=W0221
         """ Connect to controller. """
-        if self.socket is None:
-            self.socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-        try:
-            self.socket.connect((self.ip, self.port))
-            if self.logger:
-                self.logger.debug("Connected to %(host)s:%(port)s", {
-                    'host': self.ip,
-                    'port': self.port
-                })
-            self.connected = True
-            self.success = True
-            self.set_status('ready')
+        if self.validate_connection_params((host, port)):
+            self.host = host
+            self.port = port
+            if self.socket is None:
+                self.socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+            try:
+                self.socket.connect((host, port))
+                self.report_info(f"Connected to {host}:{port}")
+                self._set_connected(True)
 
-        except OSError as e:
-            if e.errno == EISCONN:
-                if self.logger:
-                    self.logger.debug("Already connected")
-                self.connected = True
-                self.success = True
-                self.set_status('ready')
-            else:
-                if self.logger:
-                    self.logger.error("Connection error: %s", e.strerror)
-                self.connected = False
-                self.success = False
-                self.set_status('not connected')
-        # clear socket
-        if self.connected:
-            self.__clear_socket()
-    
+            except OSError as e:
+                if e.errno == EISCONN:
+                    self.report_info("Already connected")
+                    self._set_connected(True)
+                else:
+                    self.report_error(f"Connection error: {e.strerror}")
+                    self._set_connected(False)
+            # clear socket
+            if self.is_connected():
+                self._clear_socket()
 
-    def __clear_socket(self):
+    def _clear_socket(self):
         """ Clear socket buffer. """
         if self.socket is not None:
             self.socket.setblocking(False)
@@ -105,37 +78,6 @@ class FilterWheelController(HardwareMotionBase):
                 except BlockingIOError:
                     break
             self.socket.setblocking(True)
-
-    def check_status(self):
-        """ Check connection status """
-        if not self.connected:
-            status = 'not connected'
-        elif not self.success:
-            status = 'unresponsive'
-        else:
-            status = 'ready'
-
-        self.set_status(status)
-        return (0, status)
-
-
-    def set_status(self, status):
-        """ Set the status of the filter wheel.
-
-        :param status: String, status of the controller.
-
-        """
-
-        status = status.lower()
-
-        if self.status is None:
-            current = None
-        else:
-            current = self.status
-
-        if current != 'locked' or status == 'unlocked':
-            self.status = status
-
 
     def initialize(self):
         """ Initialize the filter wheel. """
@@ -173,13 +115,13 @@ class FilterWheelController(HardwareMotionBase):
             self._send_command('trig=1')
             save = True
 
-        if save is True:
+        if save:
             self._send_command('save')
 
         self.initialized = True
 
 
-    def _send_command(self, command): # pylint: disable=unused-argument
+    def _send_command(self, command: str): # pylint: disable=W0221
         """ Wrapper to issue_command(), ensuring the command lock is
             released if an exception occurs.
 
@@ -189,24 +131,26 @@ class FilterWheelController(HardwareMotionBase):
 
         with self.lock:
             try:
-                result = self.__issue_command(command)
-                self.success = True
-            finally:
-                # Ensure that status is always checked, even on failure
-                self.check_status()
+                result = self._issue_command(command)
+                if result is None:
+                    self.report_error(f"Failed to issue command: {command}")
+            except Exception as e:
+                self.report_error(f"Error sending command: {command}")
+                raise IOError(f"Failed to issue command: {command}") from e
+            self.logger.debug("Command sent to filter wheel")
 
         return result
 
-    def __issue_command(self, command):
+    def _issue_command(self, command) -> Union[str, None]:
         """ Wrapper to send/receive with error checking and retries.
 
         :param command: String, command to issue.
 
         """
-
-        if not self.connected:
-            self.set_status('connecting')
-            self.connect()
+        # pylint: disable=too-many-branches, too-many-statements
+        if not self.is_connected():
+            self.report_info('connecting')
+            self.connect(self.host, self.port)
 
         retries = 3
         reply = ''
@@ -218,14 +162,14 @@ class FilterWheelController(HardwareMotionBase):
                 self.socket.send(send_command)
 
             except socket.error:
-                self.logger.error(
-                    "Failed to send command, re-opening socket, %d retries remaining", retries)
+                self.report_error(
+                    f"Failed to send command, re-opening socket, {retries} retries "
+                    f"remaining")
                 self.disconnect()
                 try:
-                    self.connect()
+                    self.connect(self.host, self.port)
                 except OSError:
-                    self.logger.error(
-                        'Could not reconnect to controller, aborting')
+                    self.report_error('Could not reconnect to controller, aborting')
                     return None
                 retries -= 1
                 continue
@@ -265,7 +209,8 @@ class FilterWheelController(HardwareMotionBase):
         else:
             reply = reply.decode('utf-8')
 
-        if retries == 0:
+        if retries <= 0:
+            self.report_error("Failed to send command.")
             raise RuntimeError('unable to successfully issue command: ' + repr(command))
 
         # For a command with a reply, the response always looks like:
@@ -291,11 +236,11 @@ class FilterWheelController(HardwareMotionBase):
 
         return None
 
-    def get_position(self):
+    def get_pos(self):  # pylint: disable=W0221
         """ Get the current position from the controller."""
         return self._send_command('pos?')
 
-    def move(self, target):
+    def set_pos(self, target):  # pylint: disable=W0221
         """ Move the filter wheel to the target position.
 
         :param target: Int, target position to move.
@@ -312,7 +257,7 @@ class FilterWheelController(HardwareMotionBase):
         if response is not None:
             raise RuntimeError(f"error response to command: {response}")
 
-        current = int(self.get_position())
+        current = int(self.get_pos())
 
         if current != target:
             raise RuntimeError(
@@ -324,40 +269,26 @@ class FilterWheelController(HardwareMotionBase):
         :return: The reply or None if no reply was received."""
         #Not needed for this device
         return NotImplemented
-    
-    #abstract Motion methods below     
+
+    # abstract Motion methods below
     def close_loop(self):
         """Close the loop for the hardware motion device."""
-        return NotImplemented
-    
+        return True
+
     def is_closed_loop(self):
         """Check if the hardware motion device is closed loop."""
-        return NotImplemented
-    
+        return True
+
     def home(self):
         """Home the hardware motion device."""
-        return NotImplemented
-    
+        return True
+
     def is_homed(self):
         """Check if the hardware motion device is homed."""
-        return NotImplemented
-    
-    def get_pos(self):
-        """Get the position of the hardware motion device."""
-        return int(self.get_position())
-    
-    def set_pos(self, pos: int): # pylint: disable=unused-argument
-        """Set the position of the hardware motion device."""
-        try:
-            self.move(pos)
-        except Exception as e: # pylint: disable=unused-argument
-            self.logger.error(f"Error: {e}")
-            return False
         return True
 
     def get_limits(self):
         """Get the limits of the hardware motion device."""
-        return NotImplemented
-
+        return {}
 
 # end of class Controller
