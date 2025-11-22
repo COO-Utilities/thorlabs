@@ -58,14 +58,14 @@ class Comms_Test(unittest.TestCase):
         ret = self.dev.get_loop(channel = 0)
         assert ret[0] == self.dev.OPEN_LOOP
         assert ret[1] == self.dev.OPEN_LOOP
-        self.dev.close()
+        self.dev.disconnect()
         time.sleep(.25)
         with self.assertRaises(Exception):
             self.dev.get_loop()
             self.dev.set_loop()
         time.sleep(.25)
         #Close connection
-        self.dev.close()
+        self.dev.disconnect()
         time.sleep(.25)
 
     ##########################
@@ -80,7 +80,7 @@ class Comms_Test(unittest.TestCase):
 
         success = dev.open()
         self.assertFalse(success, "Expected connection failure with invalid ip/port")
-        dev.close()
+        dev.disconnect()
 
     ##########################
     ## Limit Check
@@ -105,7 +105,7 @@ class Comms_Test(unittest.TestCase):
             print(f"Back to Original Channel {ch} Max output Voltage: {ret}")
 
         #Close connection
-        self.dev.close()
+         self.dev.disconnect()
         time.sleep(.25)
 
     ##########################
@@ -131,7 +131,7 @@ class Comms_Test(unittest.TestCase):
             assert ret == self.dev.OPEN_LOOP
 
         #Close connection
-        self.dev.close()
+        self.dev.disconnect()
         time.sleep(.25)
 
     ##########################
@@ -148,7 +148,7 @@ class Comms_Test(unittest.TestCase):
             # Get status bits
             ret = self.dev.get_status_bits(channel=ch)
             assert ret is not None
-        self.dev.close()
+        self.dev.disconnect()
         time.sleep(.25)
 
 
