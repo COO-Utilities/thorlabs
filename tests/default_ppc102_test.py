@@ -86,8 +86,9 @@ class Comms_Test(unittest.TestCase):
     ## Limit Check
     ##########################
     def test_limit(self):
-         # Open connection     
-        self.dev = PPC102_Coms(ip=self.ip, port = self.port,log = self.log)
+         # Open connection
+        self.dev = PPC102_Coms()
+        self.dev.connect(host=self.ip, port = self.port)
         time.sleep(.2)
         self.dev.open()
         time.sleep(.25)
@@ -105,7 +106,7 @@ class Comms_Test(unittest.TestCase):
             print(f"Back to Original Channel {ch} Max output Voltage: {ret}")
 
         #Close connection
-         self.dev.disconnect()
+        self.dev.disconnect()
         time.sleep(.25)
 
     ##########################
