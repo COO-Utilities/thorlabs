@@ -6,14 +6,6 @@ with software or hardware indications. The issue is that an interrupt can get
 out of sync with the internal firmware loop, and you are unable to hop back
 into the loop. SOLUTION:: Power Cycle
                   -Elijah A-B(Dev of this Library)
-"""
-import errno
-import time
-import socket
-import struct
-from hardware_device_base import HardwareMotionBase
-
-"""
 # Should Modify:
 # Provide a build mode which does not print
 # Can use buildFLG to supress prints and take it in as arg
@@ -27,17 +19,23 @@ from hardware_device_base import HardwareMotionBase
 # - 0x11 (00010001) = motherboard [for controller-general commands]
 # - 0x21 (00100001) = motor channel 1 [for commands to channel 1]
 # - 0x22 (00100010) = motor channel 2
-# 
+#
 # When a message is going to be >6 bytes long, the MSB must be set. The manual 
 #    suggests doing that with a bitwise OR against 0x80 (shown in manual as 'd|')
 # - 0x80 (10000000) = used to bit flip the MSB, signaling a longer-than-6-byte message
-# 
+#
 # Example:
-# In the set_position() function, we're can command channel one, so we use 0x21. 
+# In the set_position() function, we can command channel one, so we use 0x21.
 #   Since the command carries data (>6 bytes), we need to OR with 0x80.
 #  ==>> 0x21          |       0x80      =       0xA1
 #            (00100001) | (10000000) = (10100001)
 """
+
+import errno
+import time
+import socket
+import struct
+from hardware_device_base import HardwareMotionBase
 
 class PPC102_Coms(HardwareMotionBase):
     """Class for controlling the Throlabs PPC102
@@ -255,10 +253,10 @@ class PPC102_Coms(HardwareMotionBase):
     def set_enable(self, channel: int = 0, enable: int = 1):
         """
             Sets enable on PPC102 Controller
-            channel param:(int) 1 or 2
+            channel param: (int) 1 or 2
                           NOTE: Default channel is set to 0, This will change both
                           channels to the desired enable state provided by the user
-            enable param:(int) Enable=1 or Disable=2
+            enable param: (int) Enable=1 or Disable=2
             Returns: True/False based on successful com send
             **MGMSG_MOD_SET_CHANENABLESTATE**(10 02 Chan_Ident Enable_State d s)
         """
@@ -296,7 +294,7 @@ class PPC102_Coms(HardwareMotionBase):
     def get_enable(self, channel: int = 0):
         """
             Gets enable on PPC102 Controller
-            channel param:(int) 1 or 2
+            channel param: (int) 1 or 2
                           NOTE: channel=0 will query both channels, returning a
                                 list (channel 1 result, channel 2 result)
             Returns: enable state for that channel as int
@@ -355,7 +353,7 @@ class PPC102_Coms(HardwareMotionBase):
         """
             Sets Digital Output on PPC102 Controller
             (Trigger Fucntionality must be disabled by calling set_trigger first)
-            channel param:(int) 1 or 2
+            channel param: (int) 1 or 2
             bit param:1111 for all on and 0000 for all off
                             (Only capable of all or nothing setting)
             Returns: True/False based on successful com send
@@ -372,7 +370,7 @@ class PPC102_Coms(HardwareMotionBase):
             # Validate channel
             if channel not in (1, 2):
                 raise ValueError("Channel must be 1 or 2")
-            
+
             chan = 0x20 + channel  # '2' + channel, as hex
 
             # Validate bit
@@ -405,7 +403,7 @@ class PPC102_Coms(HardwareMotionBase):
     def _get_digital_outputs(self,channel:int = 1, bit=0000):
         """
             Gets Digital Output on PPC102 Controller
-            channel param:(int) 1 or 2
+            channel param: (int) 1 or 2
             Returns: Bit
             **MGMSG_MOD_REQ_DIGOUTPUTS**(14 02 Bits 00 d s)**
 
@@ -419,7 +417,7 @@ class PPC102_Coms(HardwareMotionBase):
             # Validate channel
             if channel not in (1, 2):
                 raise ValueError("Channel must be 1 or 2")
-            
+
             chan = 0x20 + channel  # '2' + channel, as hex
 
             # Validate bit (not strictly needed for a "get",
@@ -509,18 +507,18 @@ class PPC102_Coms(HardwareMotionBase):
             # Send Req response Command
             command = bytes([0x80, 0x00, 0x00, 0x00, 0x11, 0x01])
             #REQ
-            self.write(command) 
+            self.write(command)
             time.sleep(self.DELAY)  # Wait Delay time for write
-            #returns printed 
+            #returns printed
             res = self.read_buff()
-            if(len(res) == 0):
+            if len(res) == 0:
                 raise BufferError("Buffer empty when expecting response")
             return res  # TODO: Optional – parse return code if needed
         except Exception as e:
             self.report_error(f"Error: {e}")
             self._check_for_reboot_()
             return None
-    
+
     def _hw_richresponse(self): #TODO:: Finish
         """
             Similarly, to HW_RESPONSE, this message is sent by the controllers
@@ -532,7 +530,7 @@ class PPC102_Coms(HardwareMotionBase):
                 numerical value and the text information, which is useful in finding
                 the cause of the problem.
             Returns:
-            **MGMSG_HW_RICHRESPONSE**(81 00 44 00 d s MsgIdent(x2bytes) code(x2bytes))**
+            **MGMSG_HW_RICHRESPONSE**(81 00 44 00 d s MsgIdent(x 2 bytes) code(x 2 bytes))**
 
             NOTE:: HW_Response and HW_RichResponse basically do the same thing,
             these are usually sent by the controller indicating some sort of fault
@@ -554,7 +552,7 @@ class PPC102_Coms(HardwareMotionBase):
             time.sleep(self.DELAY)  # Wait Delay time for write
             #returns printed
             res = self.read_buff()
-            if(len(res) == 0):
+            if len(res) == 0:
                 raise BufferError("Buffer empty when expecting response")
             return res  # TODO: Optional – parse message content
         except Exception as e:
@@ -567,14 +565,14 @@ class PPC102_Coms(HardwareMotionBase):
             Sent to start automatic status updates from the embedded
                 controller. Status update messages contain information about the
                 position and status of the controller (for example limit switch
-                status, motion indication, etc). The messages will be sent by
+                status, motion indication, etc.). The messages will be sent by
                 the controller every 100 msec until it receives a STOP STATUS
                 UPDATE MESSAGES command. In applications where spontaneous
                 messages (i.e., messages which are not received as a response to
                 a specific command) must be avoided the same information can
                 also be obtained by using the relevant GET_STATUTSUPDATES function.
             Returns: True/False on successful com send
-            **MGMSG_HW_START_UPDATEMSGS**(11 00 unused unused d s)**
+            **MGMSG_HW_START_UPDATEMSGS**(11 00 unused d s)**
 
             NOTE: This function starts the polling loop inside the hardware that is
         """
@@ -600,7 +598,7 @@ class PPC102_Coms(HardwareMotionBase):
                 the controller to turn off status updates to prevent USB buffer
                 overflows on the PC.
             Returns: True/False on successful com send
-            **MGMSG_HW_STOP_UPDATEMSGS**(12 00 unused unused d s)**
+            **MGMSG_HW_STOP_UPDATEMSGS**(12 00 unused d s)**
         """
         if not self.sock:
             raise RuntimeError("Socket is not connected.")
@@ -637,7 +635,7 @@ class PPC102_Coms(HardwareMotionBase):
             self.write(bytes([0x05, 0x00, 0x00, 0x00, 0x11, 0x01]))
             time.sleep(self.DELAY)  # Data Grab
             res = self.read_buff()
-            if(len(res) != 90):
+            if len(res) != 90:
                 raise BufferError("Buffer empty when expecting response")
             #Save all info needed into self.variables
         except Exception as e:
@@ -685,7 +683,7 @@ class PPC102_Coms(HardwareMotionBase):
             Sets the loop to open or closed on each channel
                 -Must change for each channel to have a completely closed loop
                 -each channel must be enabled
-            channel:(int) 1 or 2
+            channel: (int) 1 or 2
                     NOTE: Default channel is set to 0, This will change both
                     loops to the desired state the user is attempting to set it to
             loop: Loop state int:   1 Open Loop (no feedback)
@@ -705,7 +703,7 @@ class PPC102_Coms(HardwareMotionBase):
                 set_val = loop
             else:
                 raise ReferenceError('Loop mode out of range (must be 1,2,3 or 4)')
-            
+
             # Validate channel
             if channel == 0:
                 #Check for enable, instruct to set enable if needed
@@ -743,7 +741,7 @@ class PPC102_Coms(HardwareMotionBase):
     def get_loop(self, channel: int = 0):
         """
             Gathers the current state of a channels loop
-            channel:(int) 1 or 2
+            channel: (int) 1 or 2
                     NOTE: channel=0 will query both channels, returning a
                           list (channel 1 result, channel 2 result)
             Returns: Loop state int 1 Open Loop (no feedback)
@@ -779,7 +777,7 @@ class PPC102_Coms(HardwareMotionBase):
                 return int(ch1_state[2:],16), int(ch2_state[2:],16)
             if channel not in (1, 2):
                 raise ValueError("Channel must be 1 or 2")
-            
+
             chan = 0x20 + channel  # '2' + channel, as hex
 
             # Construct command: [0x41, 0x06, 0x01, 0x00, chan, 0x01]
@@ -798,7 +796,7 @@ class PPC102_Coms(HardwareMotionBase):
             self.report_error(f"Error: {e}")
             self._check_for_reboot_()
             return None
-        
+
     def are_loops_closed(self, channel: int = 0):
         """
             Uses the get_loop function that returns an int to return a
@@ -818,14 +816,14 @@ class PPC102_Coms(HardwareMotionBase):
 
     def set_output_volts(self, channel: int = 1, volts:int = 0):
         """
-            Sets voltage going to specified channel
+            Sets voltage going to specific channel
                 -Must be in open loop
                 -each channel must be enabled
-            channel:(int) 1 or 2
-            volts:(int) -32768 --> 32767
+            channel: (int) 1 or 2
+            volts: (int) -32768 --> 32767
             Returns: True or False on successful com send
-            **MGMSG_PZ_SET_OUTPUTVOLTS**(43 06 04 00 d s Chan_Ident(x2bytes)
-                                                                Volts(x2bytes))**
+            **MGMSG_PZ_SET_OUTPUTVOLTS**(43 06 04 00 d s Chan_Ident(x 2 bytes)
+                                                                Volts(x 2 bytes))**
         """
         if not self.sock:
             raise RuntimeError("Socket is not connected.")
@@ -871,7 +869,7 @@ class PPC102_Coms(HardwareMotionBase):
         """
             Gathers the current state of a channels voltage
                 -must be in open loop
-            channel:(int) 1 or 2
+            channel: (int) 1 or 2
             Returns: Voltage state in int (-32768 --> 32767)
             **MGMSG_PZ_GET_OUTPUTVOLTS**(44 6 Chan_Ident 00 d s)**
         """
@@ -883,7 +881,7 @@ class PPC102_Coms(HardwareMotionBase):
             if channel not in (1, 2):
                 raise ValueError("Channel must be 1 or 2")
 
-            destination = (0x20 + channel)
+            destination = 0x20 + channel
 
             # Only proceed if open loop and enabled
             if (self.get_loop(channel) == self.OPEN_LOOP and
@@ -925,8 +923,8 @@ class PPC102_Coms(HardwareMotionBase):
             Returns: True or False based on successful com send
             NOTE:Sending Controller 0 --> 32767 based on the angular range
                     user provides
-            **MGMSG_PZ_SET_OUTPUTPOS**(46 06 04 00 d s Chan_Ident(x2bytes)
-                                                                Pos(x2bytes))**
+            **MGMSG_PZ_SET_OUTPUTPOS**(46 06 04 00 d s Chan_Ident( x 2 bytes)
+                                                                Pos( x 2 bytes))**
         """
         # Check if socket is open
         if not self.sock:
@@ -986,7 +984,7 @@ class PPC102_Coms(HardwareMotionBase):
             if channel not in (1, 2):
                 raise ValueError("Channel must be 1 or 2")
 
-            destination = (0x20 + channel)
+            destination = 0x20 + channel
 
             # Send Req OUTPUTPOS command if in closed loop
             if (self.get_loop(channel) == self.CLOSED_LOOP and
@@ -1044,12 +1042,12 @@ class PPC102_Coms(HardwareMotionBase):
             # Validate channel
             if channel not in (1, 2):
                 raise ValueError("Channel must be 1 or 2")
-            
-            destination = (0x20 + channel)
+
+            destination = 0x20 + channel
 
             # Send Req
             command = bytes([0x50, 0x06, 0x01, 0x00,destination, 0x01])
-            self.write(command) #REQ
+            self.write(command)  # REQ
 
             time.sleep(self.DELAY)  # Wait Delay time for write
 
@@ -1080,7 +1078,7 @@ class PPC102_Coms(HardwareMotionBase):
             Returns: Status Bytes 4 hex values
             **MGMSG_PZ_REQ_PZSTATUSBITS**(5B 06 Chan_Ident 00 d s)**
 
-            NOTE::Bit status comes from pg.204 of thor labs APT Coms documentation
+            NOTE::The Bit status comes from pg.204 of thor labs APT Coms documentation
 
         """
         # Check if socket is open
@@ -1091,7 +1089,7 @@ class PPC102_Coms(HardwareMotionBase):
             if channel not in (1, 2):
                 raise ValueError("Channel must be 1 or 2")
 
-            destination = (0x20 + channel)
+            destination = 0x20 + channel
 
             # Send
             command = bytes([0x5B, 0x06, 0x01, 0x00,destination, 0x01])
@@ -1105,10 +1103,10 @@ class PPC102_Coms(HardwareMotionBase):
 
             # Collect status bytes 8 through 11 (LSB to MSB)
             status_bytes = bytes(int(b, 16) for b in status[8:12])
-            
+
             #deliver to interpret bytes function
             results = self._interpret_bit_flags(status_bytes)
-            
+
             self.report_info(f"Status Flags: {results}")
             return results
         except Exception as e:
@@ -1137,7 +1135,7 @@ class PPC102_Coms(HardwareMotionBase):
             if channel not in (1, 2):
                 raise ValueError("Channel must be 1 or 2")
 
-            destination = (0x20 + channel)
+            destination = 0x20 + channel
 
             command = bytes([0x60, 0x06, 0x01, 0x00,destination, 0x01])
             self.write(command) #REQ
@@ -1232,7 +1230,7 @@ class PPC102_Coms(HardwareMotionBase):
             if channel not in (1, 2):
                 raise ValueError("Channel must be 1 or 2")
 
-            destination = (0x20 + channel)
+            destination = 0x20 + channel
 
             #Send command for reqOUTPUTMAXVOLTS
             command = bytes([0x81, 0x06, 0x01, 0x00,destination, 0x01])
@@ -1314,7 +1312,7 @@ class PPC102_Coms(HardwareMotionBase):
             self.write(packet)
             time.sleep(self.DELAY)
 
-            self.logger.info(f"PID constants sent: P={p_const}, "
+            self.report_info(f"PID constants sent: P={p_const}, "
                     "I={i_const}, D={d_const}, DFC={dfc_const}, "
                     "Filter={'ON' if derivFilter else 'OFF'}")
             return True
@@ -1326,7 +1324,7 @@ class PPC102_Coms(HardwareMotionBase):
     def _get_ppc_PIDCONSTS(self, channel:int = 1):
         """
             Gets current state values based on description from set
-            channel:(int) 1 or 2
+            channel: (int) 1 or 2
             Returns: PID constants in the same format as the set
             **MGMSG_PZ_GET_PPC_PIDCONSTS**(91 06 Chan_Ident 00 d s )**
 
@@ -1341,7 +1339,7 @@ class PPC102_Coms(HardwareMotionBase):
 
         try:
             if 0 < channel < 3:
-                destination = (0x20 + channel)
+                destination = 0x20 + channel
             else:
                 raise ReferenceError("Channel must be 1 or 2.")
 
@@ -1471,7 +1469,7 @@ class PPC102_Coms(HardwareMotionBase):
     def _get_ppc_NOTCHPARAMS(self, channel: int = 1):
         """
             Gets current state values based on description from set
-            channel:(int) 1 or 2
+            channel: (int) 1 or 2
             Returns: PID constants in the same format as the set
             **MGMSG_PZ_GET_PPC_NOTCHPARAMS**(95 06 Chan_Ident 00 d s )**
         """
@@ -1484,7 +1482,7 @@ class PPC102_Coms(HardwareMotionBase):
                 raise ValueError("Channel must be 1 or 2")
 
             #Creaste and write request header
-            destination = (0x20 + channel)
+            destination = 0x20 + channel
             chan_ident = (1).to_bytes(1, byteorder='little')
 
             header = bytes([0x94, 0x06]) + chan_ident + bytes([0x00, destination, 0x01])
@@ -1576,7 +1574,7 @@ class PPC102_Coms(HardwareMotionBase):
             header = bytes([0x96, 0x06, 0x0E, 0x00, destination, 0x01])
             datapacket = header + package
             self.write(datapacket)
-            self.logger.info(
+            self.report_info(
                         f"Set IOSettings CH{channel}: "
                         f"ControlSrc={cntl_src}, MonitorOutSig={monitor_opsig}, MonitorOutBW={monitor_opbw}, "
                         f"FeedbackSrc={feedback_src}, FPBrightness={fp_brightness}, Reserved={reserved}"
@@ -1590,7 +1588,7 @@ class PPC102_Coms(HardwareMotionBase):
     def _get_ppc_IOSETTINGS(self, channel: int = 1):
         """
             Gets current state values based on description from set
-            channel:(int) 1 or 2
+            channel: (int) 1 or 2
             Returns: PID constants in the same format as the set
             **MGMSG_PZ_GET_PPC_IOSETTINGS**(97 06 01 00 d s )**
         """
