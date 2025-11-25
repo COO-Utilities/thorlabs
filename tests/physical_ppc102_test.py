@@ -1,29 +1,29 @@
-#################
-#Functionality test
-#Description: Test connection, disconnection, confirming communication with stage,
-#               inicialization(or something similar) and movement/position query
-#               tests are successful and correct
-#################
+"""
+Functionality test
+Description: Test connection, disconnection, confirming communication with stage,
+               inicialization(or something similar) and movement/position query
+               tests are successful and correct
+"""
 
-import pytest
-pytestmark = pytest.mark.functional
+
 import sys
-import os
 import unittest
-import time 
-from ppc102 import PPC102_Coms
+import time
+import pytest
+from ppc102 import Ppc102Controller
+
+pytestmark = pytest.mark.functional
 
 ##########################
 ## CONFIG
 ## connection and Disconnection in all test
 ##########################
-class Physical_Test(unittest.TestCase):
-
-    #Instances for Test management
+class PhysicalTest(unittest.TestCase):
+    """Instances for Test management"""
     def setUp(self):
         self.dev = None
         self.success = True
-        self.ip = '192.168.29.100'
+        self.host = '192.168.29.100'
         self.port = 10012
         self.log = False
         self.error_tolerance = 0.1
@@ -33,16 +33,17 @@ class Physical_Test(unittest.TestCase):
     ## Servos / Loops [ Not really applicable]
     ##########################
     def test_loop(self):
+        """Test loop mode"""
         time.sleep(.2)
-        # Open connection     
-        self.dev = PPC102_Coms(ip=self.ip, port = self.port,log = self.log)
+        # Open connection
+        self.dev = Ppc102Controller(log = self.log)
         time.sleep(.2)
-        self.dev.open()
+        self.dev.connect(self.host, self.port)
         time.sleep(.25)
         for ch in [1,2]:#Check for channels that are applicable
             #Close Loop assert Loop states
             ret = self.dev.get_loop(channel=ch)
-            assert ret == self.dev.OPEN_LOOP or ret == self.dev.CLOSED_LOOP
+            assert ret in [self.dev.OPEN_LOOP, self.dev.CLOSED_LOOP]
             assert self.dev.set_loop(channel=ch, loop=2)
             ret = self.dev.get_loop(channel=ch)
             assert ret == self.dev.CLOSED_LOOP
@@ -60,14 +61,14 @@ class Physical_Test(unittest.TestCase):
         ret = self.dev.get_loop(channel = 0)
         assert ret[0] == self.dev.OPEN_LOOP
         assert ret[1] == self.dev.OPEN_LOOP
-        self.dev.close()
+        self.dev.disconnect()
         time.sleep(.25)
         with self.assertRaises(Exception):
             self.dev.get_loop()
             self.dev.set_loop()
         time.sleep(.25)
         #Close connection
-        self.dev.close()
+        self.dev.disconnect()
         time.sleep(.25)
 
 
@@ -75,10 +76,11 @@ class Physical_Test(unittest.TestCase):
     ## Limit Check
     ##########################
     def test_limit(self):
-         # Open connection     
-        self.dev = PPC102_Coms(ip=self.ip, port = self.port,log = self.log)
+        """ Test limit mode"""
+        # Open connection
+        self.dev = Ppc102Controller(log = self.log)
         time.sleep(.2)
-        self.dev.open()
+        self.dev.connect(self.host, self.port)
         time.sleep(.25)
         for ch in [1,2]:  # Check for channels that are applicable
             # Check limit states and save to variable
@@ -94,41 +96,42 @@ class Physical_Test(unittest.TestCase):
             print(f"Back to Original Channel {ch} Max output Voltage: {ret}")
 
         #Close connection
-        self.dev.close()
+        self.dev.disconnect()
         time.sleep(.25)
 
     ##########################
     ## Position Query and Movement
     ##########################
     def test_position_query_and_movement(self):
-        self.dev = PPC102_Coms(ip=self.ip, port = self.port,log = self.log)
-        self.dev.open()
+        """Test position query and movement mode"""
+        self.dev = Ppc102Controller(log = self.log)
+        self.dev.connect(self.host, self.port)
         time.sleep(.25)
         for ch in [1,2]:  # Check for channels that are applicable
             # Close loops and assert
             ret = self.dev.get_loop(channel=ch)
-            assert ret == self.dev.OPEN_LOOP or ret == self.dev.CLOSED_LOOP
+            assert ret in [self.dev.OPEN_LOOP, self.dev.CLOSED_LOOP]
             assert self.dev.set_loop(channel=ch, loop=self.dev.CLOSED_LOOP)
             ret = self.dev.get_loop(channel=ch)
             assert ret == self.dev.CLOSED_LOOP
             # Set position and assert
-            assert self.dev.set_position(channel=ch, pos=0)
+            assert self.dev.set_pos(channel=ch, pos=0)
             time.sleep(.2)
             # Get position and assert
-            ret = self.dev.get_position(channel=ch)
+            ret = self.dev.get_pos(channel=ch)
             assert abs(ret - 0) < self.error_tolerance*2
             original_position = ret
             print(f"Channel {ch} Original Position: {original_position}")
             # Set position and assert with Error Tolerance x2
-            assert self.dev.set_position(channel=ch, pos=1.0)
+            assert self.dev.set_pos(channel=ch, pos=1.0)
             time.sleep(.2)
-            ret = self.dev.get_position(channel=ch)
+            ret = self.dev.get_pos(channel=ch)
             assert abs(ret - 1.0) < self.error_tolerance*2
             print(f"Channel {ch} New Position: {ret}")
             # Set position back to default
-            assert self.dev.set_position(channel=ch, pos=original_position)
+            assert self.dev.set_pos(channel=ch, pos=original_position)
             time.sleep(.2)
-            ret = self.dev.get_position(channel=ch)
+            ret = self.dev.get_pos(channel=ch)
             assert abs(ret - original_position) < self.error_tolerance*2
             print(f"Channel {ch} Back to Original Position: {ret}")
             #open loops and assert
@@ -137,13 +140,13 @@ class Physical_Test(unittest.TestCase):
             assert ret == self.dev.OPEN_LOOP
 
         #Close connection
-        self.dev.close()
+        self.dev.disconnect()
         time.sleep(.25)
 
 
 if __name__ == '__main__':
     loader = unittest.TestLoader()
-    suite = loader.loadTestsFromTestCase(Robust_Test)
+    suite = loader.loadTestsFromTestCase(PhysicalTest)
     runner = unittest.TextTestRunner(verbosity=2)
     result = runner.run(suite)
     sys.exit(not result.wasSuccessful())

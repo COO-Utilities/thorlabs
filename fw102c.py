@@ -275,7 +275,7 @@ class FilterWheelController(HardwareMotionBase):
         """Close the loop for the hardware motion device."""
         return True
 
-    def is_closed_loop(self):
+    def is_loop_closed(self):
         """Check if the hardware motion device is closed loop."""
         return True
 
