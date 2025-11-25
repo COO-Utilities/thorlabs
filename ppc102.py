@@ -41,7 +41,7 @@ from typing import Tuple, Union, Dict
 from hardware_device_base import HardwareMotionBase
 
 class Ppc102Controller(HardwareMotionBase):
-    """Class for controlling the Throlabs PPC102
+    """Class for controlling the Thorlabs PPC102
     ***Device not setting Keys/Intr bits correctly so some items are omitted
         from this code to avoid confusion
         - The output of the device depends solely on the 'enable' bit
@@ -183,7 +183,7 @@ class Ppc102Controller(HardwareMotionBase):
             self.logger.debug("Received %s", hex_array)
             return hex_array
         except socket.timeout:
-            self.logger.error("Read timed out.")
+            self.report_error("Read timed out.")
             return []
         except socket.error as e:
             self.report_error(f"Error receiving data: {e}")
@@ -210,7 +210,7 @@ class Ppc102Controller(HardwareMotionBase):
 
     def _check_for_reboot(self):
         """
-            Checks if an unrecoverable error has occured and the device
+            Checks if an unrecoverable error has occurred and the device
             needs to be power cycled
             NOTE:: Checks for consistent behavior of unhappy state
             Returns: N/A, print statement if reboot needed
@@ -356,7 +356,7 @@ class Ppc102Controller(HardwareMotionBase):
             self._send_command(command)
             time.sleep(self.DELAY)  # Wait Delay time for _send_command
 
-            # returns self.logger.errored state of Channel and Enable
+            # returns state of Channel and Enable
             enable_status = self._read_reply()
             if len(enable_status) == 0:
                 self.report_error("Buffer empty when expecting response")
@@ -432,7 +432,7 @@ class Ppc102Controller(HardwareMotionBase):
             Returns: Bit
             **MGMSG_MOD_REQ_DIGOUTPUTS**(14 02 Bits 00 d s)**
 
-            NOTE:: bit not requred but original logic from maunal includes
+            NOTE:: bit not required but original logic from manual includes
 
         """
         # Check if socket is open
@@ -1004,7 +1004,7 @@ class Ppc102Controller(HardwareMotionBase):
                 by the Chan Ident parameter, and returns a value (in microns) in the
                 Travel parameter.
             channel: (int) 1 0r 2
-            Returns: travel of a single acuator in microns(Linear Travel) not
+            Returns: travel of a single actuator in microns(Linear Travel) not
                         Angular travel
                         (ThorLabs Support states: 10nm of linear travel equates
                         to about 20 mrad of angular movement in the mount)
@@ -1157,9 +1157,9 @@ class Ppc102Controller(HardwareMotionBase):
                 specified channel.
             channel: (int) 1 or 2
             Returns: True or False on successful com send
-            **MGMSG_PZ_SET_OUTPUTMAXVOLTS**(80 06 06 00 d| s Chan_Itent(x2bytes)
-                                                                Volts(x2bytes)
-                                                                        Flags(x2bytes))**
+            **MGMSG_PZ_SET_OUTPUTMAXVOLTS**(80 06 06 00 d| s Chan_Itent(x 2 bytes)
+                                                                Volts(x 2 bytes)
+                                                                        Flags(x 2 bytes))**
         """
         # Check if socket is open
         if not self.is_connected():
@@ -1180,7 +1180,7 @@ class Ppc102Controller(HardwareMotionBase):
             if 0 < limit <= 1500:
                 hex_val = f'{limit:04X}'
                 #Backwards voltage section according to the manual
-                #little Edian
+                #little Endian
                 volt_lsb = int(hex_val[2:], 16)
                 volt_msb = int(hex_val[:2], 16)
             else:
@@ -1321,7 +1321,7 @@ class Ppc102Controller(HardwareMotionBase):
 
         """
         raise NotImplementedError("MGMSG_PZ_GET_PPC_PIDCONSTS: "
-                                            "Parseing seems to be Incorrect")
+                                            "Parsing seems to be Incorrect")
         # check connection
         if not self.is_connected():
             self.report_error("Device is not connected")
@@ -1368,7 +1368,7 @@ class Ppc102Controller(HardwareMotionBase):
             self._check_for_reboot()
             return None
 
-    def _set_ppc_notchparams(self, channel: int, filterNO: int,
+    def _set_ppc_notchparams(self, channel: int, filter_no: int,
                              filter_1fc: float, filter_1q: float, notch_filter1_on: bool,
                              filter_2fc: float, filter_2q: float, notch_filter2_on: bool) -> bool:
         """
@@ -1386,7 +1386,7 @@ class Ppc102Controller(HardwareMotionBase):
                 the mechanical system.
                 As the resonant frequency of actuators varies with load in addition
                 to the minor variations from product to product, the notch filter is
-                tuneable so that its characteristics can be adjusted to match those
+                tunable so that its characteristics can be adjusted to match those
                 of the actuator. In addition to its centre frequency, the bandwidth of
                 the notch (or the equivalent quality factor, often referred to as the
                 Q-factor) can also be adjusted. In simple terms, the Q factor is the
@@ -1395,7 +1395,7 @@ class Ppc102Controller(HardwareMotionBase):
                 Optimizing the Q factor requires some experimentation but in
                 general a value of 5 to 10 is in most cases a good starting point.
             channel: (int) 1 or 2
-            filterNO: int 1,2,3
+            filter_no: int 1,2,3
             filter_1fc: float  20-500
             filter_1q: float 0.2 100
             notch_filter1_on: word ON or OFF
@@ -1416,14 +1416,14 @@ class Ppc102Controller(HardwareMotionBase):
             if channel not in [1, 2]:
                 self.report_error("Channel must be 1 or 2")
                 return False
-            if filterNO not in [1, 2, 3]:
+            if filter_no not in [1, 2, 3]:
                 self.report_error("Filter number must be 1, 2, or 3")
                 return False
 
             #Assign values
             destination = (0x20 + channel) | 0x80
             chan_ident = (1).to_bytes(2, byteorder='little')
-            filter_no_bytes = filterNO.to_bytes(2, byteorder='little')
+            filter_no_bytes = filter_no.to_bytes(2, byteorder='little')
 
             #Notch filters based on bools
             notch1_on_bytes = (1 if notch_filter1_on else 2).to_bytes(2, 'little')
@@ -1445,7 +1445,7 @@ class Ppc102Controller(HardwareMotionBase):
             header = bytes([0x93, 0x06, 0x10, 0x00, destination, 0x01])
             datapacket = header + package
 
-            #Write to controler and log to logger
+            #Write to controller and log to logger
             self._send_command(datapacket)
             time.sleep(self.DELAY)
 
