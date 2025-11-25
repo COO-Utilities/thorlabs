@@ -1,13 +1,13 @@
-#################
-#Unit test
-#Description: Validate software functions are correctly implemented via mocking
-#################
+"""
+Unit test
+Description: Validate software functions are correctly implemented via mocking
+"""
 
-"""Test suite for the FilterWheel class in hispec.util module."""
 import unittest
 from unittest.mock import patch, MagicMock
-from fw102c import FilterWheelController
 import pytest
+from fw102c import FilterWheelController
+
 pytestmark = pytest.mark.unit
 
 
@@ -21,25 +21,24 @@ class TestFilterWheelController(unittest.TestCase):
         mock_socket_obj.return_value = self.mock_socket
         self.mock_socket.read.return_value = b""
         self.controller = FilterWheelController(log=False)
-        self.controller.set_connection(ip="123.456.789.101", port=1234)
+        self.controller.connect("123.456.789.101", 1234)
         self.controller.connected = True
 
     def test_get_position(self):
         """Test getting the position of the filter wheel."""
         with patch.object(self.controller, "command") as mock_command:
-            self.controller.get_position()
+            self.controller.get_pos()
             mock_command.assert_called_once_with("pos?")
 
     def test_set_position(self):
         """Test setting the position of the filter wheel."""
         with patch.object(self.controller, "command") as mock_command:
             mock_command.return_value = None
-            with patch.object(self.controller, "get_position") as mock_getpos:
+            with patch.object(self.controller, "get_pos") as mock_getpos:
                 mock_getpos.return_value = 10
                 self.controller.initialized = True
-                self.controller.move(target = 10)
+                self.controller.set_pos(target = 10)
                 mock_command.assert_called_once_with("pos=10")
-
 
 
 if __name__ == "__main__":

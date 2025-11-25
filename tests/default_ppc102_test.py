@@ -1,28 +1,27 @@
-#################
-#Default Communication test
-#Description: Test connection, disconnection and confirming communication with stage
-#################
+"""
+Default Communication test
+Description: Test connection, disconnection and confirming communication with stage
+"""
 
-import pytest
-pytestmark = pytest.mark.default
 import sys
-import os
 import unittest
 import time
-from ppc102 import PPC102_Coms
+import pytest
+from ppc102 import Ppc102Controller
+
+pytestmark = pytest.mark.default
 
 ##########################
 ## CONFIG
 ## connection and Disconnection in all test
 ##########################
 
-class Comms_Test(unittest.TestCase):
-
-    #Instances for Test management
+class CommsTest(unittest.TestCase):
+    """Instances for Test management"""
     #def setUp(self):
     dev = None
     success = True
-    ip = '192.168.29.100'
+    host = '192.168.29.100'
     port = 10012
     log = False
     error_tolerance = 0.1
@@ -31,16 +30,16 @@ class Comms_Test(unittest.TestCase):
     ## Servos / Loops [ Not really applicable]
     ##########################
     def test_loop(self):
+        """ Test loop mode """
         time.sleep(.2)
-        # Open connection     
-        self.dev = PPC102_Coms(ip=self.ip, port = self.port,log = self.log)
-        time.sleep(.2)
-        self.dev.open()
+        # Open connection
+        self.dev = Ppc102Controller(log = self.log)
+        self.dev.connect(self.host, self.port, )
         time.sleep(.25)
         for ch in [1,2]:#Check for channels that are applicable
             #Close Loop assert Loop states
             ret = self.dev.get_loop(channel=ch)
-            assert ret == self.dev.OPEN_LOOP or ret == self.dev.CLOSED_LOOP
+            assert ret in [self.dev.OPEN_LOOP, self.dev.CLOSED_LOOP]
             assert self.dev.set_loop(channel=ch, loop=2)
             ret = self.dev.get_loop(channel=ch)
             assert ret == self.dev.CLOSED_LOOP
@@ -72,25 +71,25 @@ class Comms_Test(unittest.TestCase):
     ## Negative test: failed connect
     ##########################
     def failed_connect_test(self):
-        # Use an unreachable ip (TEST-NET-1 range, reserved for docs/testing)
+        """Use an unreachable host (TEST-NET-1 range, reserved for docs/testing)"""
         bad_ip = "192.1.2.123"
         bad_port = 65535  # usually blocked/unusable
 
-        dev = PPC102_Coms(ip=bad_ip, port=bad_port, log=self.log)
+        dev = Ppc102Controller( log=self.log)
+        dev.connect(bad_ip, bad_port)
 
-        success = dev.open()
-        self.assertFalse(success, "Expected connection failure with invalid ip/port")
+        success = dev.is_connected()
+        self.assertFalse(success, "Expected connection failure with invalid host/port")
         dev.disconnect()
 
     ##########################
     ## Limit Check
     ##########################
     def test_limit(self):
+        """Test limit mode"""
          # Open connection
-        self.dev = PPC102_Coms()
-        self.dev.connect(host=self.ip, port = self.port)
-        time.sleep(.2)
-        self.dev.open()
+        self.dev = Ppc102Controller(log = self.log)
+        self.dev.connect(self.host, self.port)
         time.sleep(.25)
         for ch in [1,2]:  # Check for channels that are applicable
             # Check limit states and save to variable
@@ -113,17 +112,18 @@ class Comms_Test(unittest.TestCase):
     ## Position Query and Movement
     ##########################
     def test_position_query(self):
-        self.dev = PPC102_Coms(ip=self.ip, port = self.port,log = self.log)
-        self.dev.open()
+        """Test position query mode"""
+        self.dev = Ppc102Controller(log = self.log)
+        self.dev.connect(self.host, self.port)
         time.sleep(.25)
         for ch in [1,2]:  # Check for channels that are applicable
             # Close loops and assert
             assert self.dev.set_loop(channel=ch, loop=self.dev.CLOSED_LOOP)
             ret = self.dev.get_loop(channel=ch)
             assert ret == self.dev.CLOSED_LOOP
-            
+
             # Get position and assert
-            original_position = self.dev.get_position(channel=ch)
+            original_position = self.dev.get_pos(channel=ch)
             #make sure that balue returned is a not none type
             assert original_position is not None
             #open loops and assert
@@ -139,8 +139,9 @@ class Comms_Test(unittest.TestCase):
     ## Status Communication
     ##########################
     def status_communication(self):
-        self.dev = PPC102_Coms(ip=self.ip, port = self.port,log = self.log)
-        self.dev.open()
+        """Test status communication mode"""
+        self.dev = Ppc102Controller(log = self.log)
+        self.dev.connect(self.host, self.port)
         time.sleep(.25)
         for ch in [1,2]:  # Check for channels that are applicable
             # Get status and assert
@@ -155,7 +156,7 @@ class Comms_Test(unittest.TestCase):
 
 if __name__ == '__main__':
     loader = unittest.TestLoader()
-    suite = loader.loadTestsFromTestCase(Comms_Test)
+    suite = loader.loadTestsFromTestCase(CommsTest)
     runner = unittest.TextTestRunner(verbosity=2)
     result = runner.run(suite)
     sys.exit(not result.wasSuccessful())

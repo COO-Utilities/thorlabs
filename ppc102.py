@@ -25,30 +25,42 @@ into the loop. SOLUTION:: Power Cycle
 # - 0x80 (10000000) = used to bit flip the MSB, signaling a longer-than-6-byte message
 #
 # Example:
-# In the set_position() function, we can command channel one, so we use 0x21.
+# In the set_pos() function, we can command channel one, so we use 0x21.
 #   Since the command carries data (>6 bytes), we need to OR with 0x80.
 #  ==>> 0x21          |       0x80      =       0xA1
 #            (00100001) | (10000000) = (10100001)
 """
+# pylint: disable=too-many-lines
 
 import errno
 import time
 import socket
 import struct
+from typing import Tuple, Union, Dict
+
 from hardware_device_base import HardwareMotionBase
 
-class PPC102_Coms(HardwareMotionBase):
+class Ppc102Controller(HardwareMotionBase):
     """Class for controlling the Throlabs PPC102
     ***Device not setting Keys/Intr bits correctly so some items are omitted
         from this code to avoid confusion
         - The output of the device depends solely on the 'enable' bit
     """
+    # pylint: disable=too-many-public-methods
+
     DELAY = .1  # Number of seconds to wait after writing a message
     # Class Constants
     OPEN_LOOP = 1
     CLOSED_LOOP = 2
     CHAN_ENABLED = 1
     CHAN_DISABLED = 2
+    # Define bit meanings
+    bit_flags = {
+        0: "Piezo actuator connected",
+        10: "Position control mode (closed loop)",
+        29: "Active (unit is active)",
+        31: "Channel enabled",
+    }
 
     def __init__(self, log: bool = True, logfile: str =__name__.rsplit(".", 1)[-1],
                  timeout: float= 2.0):
@@ -61,15 +73,14 @@ class PPC102_Coms(HardwareMotionBase):
         """
         super().__init__(log, logfile)
 
-        # get coms
+        # get comms
         self.host = ''
         self.port = -1
         self.timeout = timeout
         self.sock = None
-        self.buffsize = 1024
-        # Other Instance Variables
+        self.buff_size = 1024
 
-    def connect(self, host, port):  # pylint: disable=W0221
+    def connect(self, host, port) -> None:  # pylint: disable=W0221
         """
             Opens connection to device
             -Also queries the device to obtain basic information
@@ -103,7 +114,7 @@ class PPC102_Coms(HardwareMotionBase):
         else:
             self.report_info(f"Invalid connection parameters: {host}:{port}")
 
-    def _clear_socket(self):
+    def _clear_socket(self) -> None:
         """Clears the socket connection"""
         if self.sock is not None:
             self.sock.setblocking(False)
@@ -114,7 +125,7 @@ class PPC102_Coms(HardwareMotionBase):
                     break
             self.sock.setblocking(True)
 
-    def disconnect(self):
+    def disconnect(self) -> None:
         """
             Closes the device connection
         """
@@ -134,37 +145,42 @@ class PPC102_Coms(HardwareMotionBase):
             self._set_connected(False)
             self.sock = None
 
-    def write(self, msg: bytes):
+    def _send_command(self, msg: bytes) -> bool:  # pylint: disable=W0221
         """
             Sends a message to the device
             msg should be bytes(ex. b'05 00 00 00 50 01')
-            *Data requests using 'write' should be followed by a read
+            *Data requests using '_send_command' should be followed by a read
             Otherwise unread items in buffer may cause problems
         """
-        # Check if socket is open
-        if not self.sock:
-            raise RuntimeError("Socket is not connected.")
+        # Check if connected
+        if not self.is_connected():
+            self.report_error("Device is not connected")
+            return False
 
         # Send message using Socket
         try:
-            self.sock.sendall(msg)
+            with self.lock:
+                self.sock.sendall(msg)
+            return True
         except socket.error as e:
             self.report_error(f"Error sending data: {e}")
+            return False
 
-    def read_buff(self):
+    def _read_reply(self):
         """
-            This function will read socket(max: self.buffsize).
+            This function will read socket(max: self.buff_size).
             If buffer had values, it will return those values in hex form for the
-            calling function to disect(Also clears buffer)
+            calling function to dissect (Also clears buffer)
         """
         #Read socket
-        if not self.sock:
-            raise RuntimeError("Socket is not connected.")
+        if not self.is_connected():
+            self.report_error("Device is not connected")
+            return []
         try:
-            #return array of hex values for other functions to Disect
-            res = self.sock.recv(self.buffsize)
+            #return array of hex values for other functions to Dissect
+            res = self.sock.recv(self.buff_size)
             hex_array = [f'0x{byte:02X}' for byte in res]
-            #print(hex_array)
+            self.logger.debug("Received %s", hex_array)
             return hex_array
         except socket.timeout:
             self.logger.error("Read timed out.")
@@ -173,33 +189,26 @@ class PPC102_Coms(HardwareMotionBase):
             self.report_error(f"Error receiving data: {e}")
             return []
 
-    def _interpret_bit_flags(self, byte_data):
+    def _interpret_bit_flags(self, byte_data) -> Union[Dict[str, bool], None]:
         """
             Helper function to interpret bits
-                All bit interpretation comes from pg.204 of APT Coms Doc
+                All bit interpretation comes from pg.204 of APT Comms Doc
         """
         if len(byte_data) != 4:
-            raise ValueError("Expected exactly 4 bytes")
+            self.report_error("Expected exactly 4 bytes")
+            return None
 
         # Convert from little endian bytes to a 32-bit unsigned integer
         status = int.from_bytes(byte_data, byteorder='little', signed=False)
 
-        # Define bit meanings
-        bit_flags = {
-            0:  "Piezo actuator connected",
-            10: "Position control mode (closed loop)",
-            29: "Active (unit is active)",
-            31: "Channel enabled",
-        }
-
         # Extract and report set bits
         results = {}
-        for bit, description in bit_flags.items():
+        for bit, description in self.bit_flags.items():
             results[description] = bool(status & (1 << bit))
 
         return results
 
-    def _check_for_reboot_(self):
+    def _check_for_reboot(self):
         """
             Checks if an unrecoverable error has occured and the device
             needs to be power cycled
@@ -217,9 +226,9 @@ class PPC102_Coms(HardwareMotionBase):
             message_list = [enableq, posq, loopq]
             counter = 0
             for message in message_list:
-                self.write(message)
+                self._send_command(message)
                 time.sleep(self.DELAY)
-                result = self.read_buff()
+                result = self._read_reply()
                 if len(result) < 6:
                     counter += 1
             if counter >= 2:
@@ -237,20 +246,21 @@ class PPC102_Coms(HardwareMotionBase):
             Makes device flash screen and LED for 3 seconds
             Useful for identifying connected device Visually
         """
-        # Check if socket is open
-        if not self.sock:
-            raise RuntimeError("Socket is not connected.")
+        # Check if connected
+        if not self.is_connected():
+            self.report_error("Device is not connected")
 
-        # Send identify command
-        try:
-            self.write(bytes([0x23, 0x02, 0x01, 0x00, 0x11, 0x01]))
-            time.sleep(3)  # Wait until identify is complete
-            self.write(bytes([0x23, 0x02, 0x02, 0x00, 0x11, 0x01]))
-            time.sleep(3)
-        except socket.error as e:
-            self.report_error(f"Error: {e}")
+        else:
+            # Send identify command
+            try:
+                self._send_command(bytes([0x23, 0x02, 0x01, 0x00, 0x11, 0x01]))
+                time.sleep(3)  # Wait until identify is complete
+                self._send_command(bytes([0x23, 0x02, 0x02, 0x00, 0x11, 0x01]))
+                time.sleep(3)
+            except socket.error as e:
+                self.report_error(f"Error: {e}")
 
-    def set_enable(self, channel: int = 0, enable: int = 1):
+    def set_enable(self, channel: int = 0, enable: int = 1) -> bool:
         """
             Sets enable on PPC102 Controller
             channel param: (int) 1 or 2
@@ -261,37 +271,40 @@ class PPC102_Coms(HardwareMotionBase):
             **MGMSG_MOD_SET_CHANENABLESTATE**(10 02 Chan_Ident Enable_State d s)
         """
         # Check if socket is open
-        if not self.sock:
-            raise RuntimeError("Socket is not connected.")
+        if not self.is_connected():
+            self.report_error("Device is not connected")
+            return False
+
         try:
             #check for valid params
             if enable not in (1, 2):
-                raise ValueError("Enable state must be 1 (Enable) or 2 (Disable)")
+                self.report_error("Enable state must be 1 (Enable) or 2 (Disable)")
+                return False
 
-            if channel == 0:
+            if channel == 0:    # enable both channels
                 command = bytes([0x10, 0x02, 0x01, enable, 0x21, 0x01])
-                self.write(command)
+                self._send_command(command)
                 time.sleep(self.DELAY)
                 command = bytes([0x10, 0x02, 0x01, enable, 0x22, 0x01])
-                self.write(command)
+                self._send_command(command)
                 time.sleep(self.DELAY)
                 return True
             if channel not in (1, 2):
-                raise ValueError("Channel must be 0, 1 or 2")
-
+                self.report_error("Channel must be 0, 1 or 2")
+                return False
+            # enable specified channel
             chan = 0x20 + channel  # Channel identifier: 0x21 or 0x22
             set_val = enable       # Already an int: 1 or 2
-
             command = bytes([0x10, 0x02, 0x01, set_val, chan, 0x01])
-            self.write(command)
+            self._send_command(command)
             time.sleep(self.DELAY)
             return True
         except Exception as e:
             self.report_error(f"Error: {e}")
-            self._check_for_reboot_()
+            self._check_for_reboot()
             return False
 
-    def get_enable(self, channel: int = 0):
+    def get_enable(self, channel: int = 0) -> Union[int, Tuple[int, int], None]:
         """
             Gets enable on PPC102 Controller
             channel param: (int) 1 or 2
@@ -300,76 +313,87 @@ class PPC102_Coms(HardwareMotionBase):
             Returns: enable state for that channel as int
             **MGMSG_MOD_REQ_CHANENABLESTATE**(11 02 Chan_Ident 0 d s)
         """
+        # pylint: disable=too-many-return-statements
         # Check if socket is open
-        if not self.sock:
-            raise RuntimeError("Socket is not connected.")
+        if not self.is_connected():
+            self.report_error("Device is not connected")
+            return None
+
         try:
             #Check channels
-            if channel == 0:
+            if channel == 0:    # get enable for both channels
                 # Construct command: [0x11, 0x02, 0x01, 0x00, chan, 0x01]
                 command = bytes([0x11, 0x02, 0x01, 0x00, 0x21, 0x01])
-                self.write(command)
+                self._send_command(command)
                 time.sleep(self.DELAY)
-                ch1 = self.read_buff()
+                ch1 = self._read_reply()
                 ch1_state = ch1[3]
                 if len(ch1) != 6:
-                    raise BufferError("Invalid number of bytes received")
+                    self.report_error("Invalid number of bytes received")
+                    return None
 
                 command = bytes([0x11, 0x02, 0x01, 0x00, 0x22, 0x01])
-                self.write(command)
+                self._send_command(command)
                 time.sleep(self.DELAY)
-                ch2 = self.read_buff()
+                ch2 = self._read_reply()
                 ch2_state = ch2[3]
                 if len(ch2) != 6:
-                    raise BufferError("Invalid number of bytes received")
+                    self.report_error("Invalid number of bytes received")
+                    return None
 
                 # return loop state
                 return int(ch1_state[2:],16), int(ch2_state[2:],16)
+            # get specified channel status
             if channel not in (1, 2):
-                raise ValueError("Channel must be 0, 1 or 2")
+                self.report_error("Channel must be 0, 1 or 2")
+                return None
 
             # Send Req Enable Command
             chan = 0x20 + channel
             command = bytes([0x11, 0x02, 0x01, 0x00, chan, 0x01])
 
             # REQ
-            self.write(command)
-            time.sleep(self.DELAY)  # Wait Delay time for write
+            self._send_command(command)
+            time.sleep(self.DELAY)  # Wait Delay time for _send_command
 
             # returns self.logger.errored state of Channel and Enable
-            enable_status = self.read_buff()
+            enable_status = self._read_reply()
             if len(enable_status) == 0:
-                raise BufferError("Buffer empty when expecting response")
+                self.report_error("Buffer empty when expecting response")
+                return None
 
             enable_state = enable_status[3]  # This should be a single byte
-            return int(enable_state[2:],16)  # Already an int if read_buff
+            return int(enable_state[2:],16)  # Already an int if _read_reply
                                                         #returns a byte array
         except Exception as e:
             self.report_error(f"Error: {e}")
-            self._check_for_reboot_()
-            return -1
+            self._check_for_reboot()
+            return None
 
-    def _set_digital_outputs(self,channel:int = 1, bit=0000):
+    def _set_digital_outputs(self,channel:int = 1, bit=0000) -> bool:
         """
             Sets Digital Output on PPC102 Controller
-            (Trigger Fucntionality must be disabled by calling set_trigger first)
+            (Trigger Functionality must be disabled by calling set_trigger first)
             channel param: (int) 1 or 2
             bit param:1111 for all on and 0000 for all off
                             (Only capable of all or nothing setting)
             Returns: True/False based on successful com send
             **MGMSG_MOD_SET_DIGOUTPUTS**(13 02 Bit 00 d s)**
 
-            NOTE: Only sets all on or all off, must implment more detailed
+            NOTE: Only sets all on or all off, must implement more detailed
             controls if you need it
 
         """
         # Check if socket is open
-        if not self.sock:
-            raise RuntimeError("Socket is not connected.")
+        if not self.is_connected():
+            self.report_error("Device is not connected")
+            return False
+
         try:
             # Validate channel
             if channel not in (1, 2):
-                raise ValueError("Channel must be 1 or 2")
+                self.report_error("Channel must be 1 or 2")
+                return False
 
             chan = 0x20 + channel  # '2' + channel, as hex
 
@@ -379,7 +403,8 @@ class PPC102_Coms(HardwareMotionBase):
             elif bit == 0b0000:
                 set_val = 0x00
             else:
-                raise ReferenceError('Bit not valid – must be 0b0000 or 0b1111')
+                self.report_error('Bit not valid – must be 0b0000 or 0b1111')
+                return False
 
             # Construct command
             command = bytes([
@@ -392,15 +417,15 @@ class PPC102_Coms(HardwareMotionBase):
             ])
 
             # Send MGMSG_MOD_SET_DIGOUTPUTS command
-            self.write(command)
+            self._send_command(command)
             time.sleep(self.DELAY)  # Wait for execution of set
             return True
         except Exception as e:
             self.report_error(f"Error: {e}")
-            self._check_for_reboot_()
+            self._check_for_reboot()
             return False
 
-    def _get_digital_outputs(self,channel:int = 1, bit=0000):
+    def _get_digital_outputs(self,channel:int = 1, bit=0000) -> Union[int, None]:
         """
             Gets Digital Output on PPC102 Controller
             channel param: (int) 1 or 2
@@ -411,12 +436,14 @@ class PPC102_Coms(HardwareMotionBase):
 
         """
         # Check if socket is open
-        if not self.sock:
-            raise RuntimeError("Socket is not connected.")
+        if not self.is_connected():
+            self.report_error("Device is not connected")
+            return None
         try:
             # Validate channel
             if channel not in (1, 2):
-                raise ValueError("Channel must be 1 or 2")
+                self.report_error("Channel must be 1 or 2")
+                return None
 
             chan = 0x20 + channel  # '2' + channel, as hex
 
@@ -427,7 +454,8 @@ class PPC102_Coms(HardwareMotionBase):
             elif bit == 0b0000:
                 set_val = 0x00
             else:
-                raise ReferenceError('Bit not valid - must be 0b0000 or 0b1111')
+                self.report_error('Bit not valid - must be 0b0000 or 0b1111')
+                return None
 
             # Construct command
             command = bytes([
@@ -440,127 +468,24 @@ class PPC102_Coms(HardwareMotionBase):
             ])
 
             # Send MGMSG_MOD_REQ_DIGOUTPUTS command
-            self.write(command)
+            self._send_command(command)
             time.sleep(self.DELAY)  # Wait for response
 
             # Read response
-            digioutputs_status = self.read_buff()
+            digioutputs_status = self._read_reply()
             if len(digioutputs_status) == 0:
-                raise BufferError("Buffer empty when expecting response")
+                self.report_error("Buffer empty when expecting response")
+                return None
 
             # Parse status byte (typically at index 2 or 3 depending on format)
             digioutputs_state = digioutputs_status[2]
             return int(digioutputs_state[2:],16)
         except Exception as e:
             self.report_error(f"Error: {e}")
-            self._check_for_reboot_()
+            self._check_for_reboot()
             return None
 
-    def _hw_disconnect(self):
-        """
-            Sent by hardware unit or host to disconnect from Ethernet or USB bus
-            Returns: True/False based on successful com send
-            **MGMSG_HW_DISCONNECT**(02 00 00 00 d s)**
-
-            NOTE:: Do not disconnect, this would require a power cycle as there
-            is noreconnect set of bytes to send based on the thorlabs comms
-            documentation
-
-        """
-        # Check if socket is open
-        if not self.sock:
-            raise RuntimeError("Socket is not connected.")
-        try:
-            # Send identify command
-            self.write(bytes([0x02, 0x00, 0x00, 0x00, 0x11, 0x01]))
-            time.sleep(self.DELAY)  # Data Grab
-            res = self.read_buff()
-            #Save all info needed into self.variables
-            self.logger.info("Disconnected from Hardware")
-            return True
-        except Exception as e:
-            self.report_error(f"Error: {e}")
-            self._check_for_reboot_()
-            return False
-
-    def _hw_response(self):
-        """
-            Sent by the controllers to notify Thorlabs Server of some event that
-                requires user intervention, usually some fault or error condition
-                that needs to be handled before normal operation can resume. The
-                message transmits the fault code as a numerical value--see the
-                Return Codes listed in the Thorlabs Server helpfile for details
-                on the specific return codes.
-            Returns: return code
-            **MGMSG_HW_RESPONSE**(80 00 00 00 d s)**
-
-            NOTE:: According to thor labs technical team, this function and
-            hw_richresponse are messages that we recieve from the hardware.
-            Rare occation.
-
-        """
-        raise NotImplementedError("MGMSG_HW_RESPONSE: Has not been fully implemented")
-         # Check if socket is open
-        if not self.sock:
-            raise RuntimeError("Socket is not connected.")
-        try:
-            # Send Req response Command
-            command = bytes([0x80, 0x00, 0x00, 0x00, 0x11, 0x01])
-            #REQ
-            self.write(command)
-            time.sleep(self.DELAY)  # Wait Delay time for write
-            #returns printed
-            res = self.read_buff()
-            if len(res) == 0:
-                raise BufferError("Buffer empty when expecting response")
-            return res  # TODO: Optional – parse return code if needed
-        except Exception as e:
-            self.report_error(f"Error: {e}")
-            self._check_for_reboot_()
-            return None
-
-    def _hw_richresponse(self): #TODO:: Finish
-        """
-            Similarly, to HW_RESPONSE, this message is sent by the controllers
-                to notify Thorlabs Server of some event that requires user
-                intervention, usually some fault or error condition that needs to be
-                handled before normal operation can resume. However, unlike
-                HW_RESPONSE, this message also transmits a printable text string.
-                Upon receiving the message, Thorlabs Server displays both the
-                numerical value and the text information, which is useful in finding
-                the cause of the problem.
-            Returns:
-            **MGMSG_HW_RICHRESPONSE**(81 00 44 00 d s MsgIdent(x 2 bytes) code(x 2 bytes))**
-
-            NOTE:: HW_Response and HW_RichResponse basically do the same thing,
-            these are usually sent by the controller indicating some sort of fault
-            that needs to be addressed by the user before continuing. The only
-            difference being that RichResponse gives you a text string to help
-            debug the fault. I've never seen these be returned before so they
-            don't come up very often.
-        """
-        raise NotImplementedError("MGMSG_HW_RICHRESPONSE: Has not been fully implemented")
-        if not self.sock:
-            raise RuntimeError("Socket is not connected.")
-        try:
-            # Send Req rich response Command
-            command = bytes([
-                0x81, 0x00, 0x44, 0x00, 0x11, 0x01, 0x00, 0x00, 0x00, 0x00
-                ])
-            #REQ
-            self.write(command)
-            time.sleep(self.DELAY)  # Wait Delay time for write
-            #returns printed
-            res = self.read_buff()
-            if len(res) == 0:
-                raise BufferError("Buffer empty when expecting response")
-            return res  # TODO: Optional – parse message content
-        except Exception as e:
-            self.report_error(f"Error: {e}")
-            self._check_for_reboot_()
-            return None
-
-    def _hw_start_update_msgs(self):
+    def _hw_start_update_msgs(self) -> bool:
         """
             Sent to start automatic status updates from the embedded
                 controller. Status update messages contain information about the
@@ -576,19 +501,21 @@ class PPC102_Coms(HardwareMotionBase):
 
             NOTE: This function starts the polling loop inside the hardware that is
         """
-        if not self.sock:
-            raise RuntimeError("Socket is not connected.")
+        if not self.is_connected():
+            self.report_error("Device is not connected")
+            return False
+
         try:
             # Send start update response Command
             command = bytes([0x11, 0x00, 0x00, 0x00, 0x11, 0x01])
             #REQ
-            self.write(command)
-            time.sleep(self.DELAY)  # Wait Delay time for write
+            self._send_command(command)
+            time.sleep(self.DELAY)  # Wait Delay time for _send_command
             # returns printed state
             return True
         except Exception as e:
             self.report_error(f"Error: {e}")
-            self._check_for_reboot_()
+            self._check_for_reboot()
             return False
 
     def _hw_stop_update_msgs(self):
@@ -600,18 +527,19 @@ class PPC102_Coms(HardwareMotionBase):
             Returns: True/False on successful com send
             **MGMSG_HW_STOP_UPDATEMSGS**(12 00 unused d s)**
         """
-        if not self.sock:
-            raise RuntimeError("Socket is not connected.")
+        if not self.is_connected():
+            self.report_error("Device is not connected")
+            return False
         try:
             # Send stop update response Command
             command = bytes([0x12, 0x00, 0x00, 0x00, 0x11, 0x01])
             #REQ
-            self.write(command)
-            time.sleep(self.DELAY)  # Wait Delay time for write
+            self._send_command(command)
+            time.sleep(self.DELAY)  # Wait Delay time for _send_command
             return True
         except Exception as e:
             self.report_error(f"Error: {e}")
-            self._check_for_reboot_()
+            self._check_for_reboot()
             return False
 
     def _get_info(self):  # TODO:: Parse this message
@@ -628,20 +556,20 @@ class PPC102_Coms(HardwareMotionBase):
         raise NotImplementedError(" MGMSG_HW_REQ_INFO Correctly send and "
                                                     "recieved but not parsed ")
         # Check if socket is open
-        if not self.sock:
-            raise RuntimeError("Socket is not connected.")
+        if not self.is_connected():
+            self.report_error("Device is not connected")
+            return None
         try:
             # Send identify command
-            self.write(bytes([0x05, 0x00, 0x00, 0x00, 0x11, 0x01]))
+            self._send_command(bytes([0x05, 0x00, 0x00, 0x00, 0x11, 0x01]))
             time.sleep(self.DELAY)  # Data Grab
-            res = self.read_buff()
+            res = self._read_reply()
             if len(res) != 90:
                 raise BufferError("Buffer empty when expecting response")
             #Save all info needed into self.variables
         except Exception as e:
             self.report_error(f"Error: {e}")
-            self._check_for_reboot_()
-            return None
+            self._check_for_reboot()
 
     def get_rack_bay_used(self, bay:int = 0):
         """
@@ -651,34 +579,40 @@ class PPC102_Coms(HardwareMotionBase):
             **MGMSG_RACK_REQ_BAYUSED**(60 00 Bay_Ident 00 d s)**
         """
         # Check if socket is open
-        if not self.sock:
-            raise RuntimeError("Socket is not connected.")
+        if not self.is_connected():
+            self.report_error("Device is not connected")
+            return False
         try:
-            if 0 <= bay < 10:
-                set_val = bay  # already an integer, 0–9
-            else:
-                raise ReferenceError('Bay Out of Range')
+            if bay < 0 or bay > 9:
+                self.report_error('Bay Out of Range')
+                return False
 
             # Send Req digioutput Command
-            command = bytes([0x60, 0x00, set_val, 0x00, 0x11, 0x01])
+            command = bytes([0x60, 0x00, bay, 0x00, 0x11, 0x01])
 
             # REQ
-            self.write(command)
-            time.sleep(self.DELAY)  # Wait Delay time for write
+            self._send_command(command)
+            time.sleep(self.DELAY)  # Wait Delay time for _send_command
 
             # Read and process response
-            bay_res = self.read_buff()
+            bay_res = self._read_reply()
             if len(bay_res) == 0:
-                raise BufferError("Buffer empty when expecting response")
+                self.report_error("Buffer empty when expecting response")
 
-            bay_state = bay_res[3]  # Already an int if read_buff returns bytes/bytearray
+            bay_state = bay_res[3]  # Already an int if _read_reply returns bytes/bytearray
             return int(bay_state[2:],16) == 1
         except Exception as e:
             self.report_error(f"Error: {e}")
-            self._check_for_reboot_()
+            self._check_for_reboot()
             return None
 
-    def set_loop(self, channel: int = 0, loop:int = 1):
+    def close_loop(self, channel: int = 0) -> bool:
+        """
+        Sets the loop to closed
+        """
+        return self.set_loop(channel, loop=self.CLOSED_LOOP)
+
+    def set_loop(self, channel: int = 0, loop:int = 1) -> bool:
         """
             Sets the loop to open or closed on each channel
                 -Must change for each channel to have a completely closed loop
@@ -694,51 +628,55 @@ class PPC102_Coms(HardwareMotionBase):
             Returns: True or False on successful com send
             **MGMSG_PZ_SET_POSCONTROLMODE**(40 06 Chan_Ident Mode d s)**
         """
+        # pylint: disable=too-many-return-statements
         # Check if socket is open
-        if not self.sock:
-            raise RuntimeError("Socket is not connected.")
+        if not self.is_connected():
+            self.report_error("Device is not connected")
+            return False
         try:
             #Check valid loop state
-            if loop in (1,2,3,4):
-                set_val = loop
-            else:
-                raise ReferenceError('Loop mode out of range (must be 1,2,3 or 4)')
+            if loop < 1 or loop > 4:
+                self.report_error('Loop mode out of range (must be 1,2,3 or 4)')
+                return False
 
             # Validate channel
             if channel == 0:
                 #Check for enable, instruct to set enable if needed
                 if (self.get_enable(channel = 1) == self.CHAN_DISABLED or
                             self.get_enable(channel = 2) == self.CHAN_DISABLED):
-                    raise PermissionError(
+                    self.report_error('Channel must be enabled'
                         'Channel must be enabled.\n'
                         '  Solution: call set_enable(channel= , enable=1)')
-                command = bytes([0x40, 0x06, 0x01, set_val, 0x21, 0x01])
-                self.write(command)
-                command = bytes([0x40, 0x06, 0x01, set_val, 0x22, 0x01])
-                self.write(command)
+                    return False
+                command = bytes([0x40, 0x06, 0x01, loop, 0x21, 0x01])
+                self._send_command(command)
+                command = bytes([0x40, 0x06, 0x01, loop, 0x22, 0x01])
+                self._send_command(command)
                 time.sleep(self.DELAY)
                 return True
             if channel not in (1, 2):
-                raise ValueError("Channel must be 0, 1 or 2")
+                self.report_error("Channel must be 0, 1 or 2")
+                return False
 
             chan = 0x20 + channel  # '2' + channel, as hex
 
             # Construct command: [0x40, 0x06, 0x01, set_val, chan, 0x01]
             #Check for enable, instruct to set enable if needed
             if self.get_enable(channel) == self.CHAN_DISABLED:
-                raise PermissionError(
+                self.report_error(
                     'Channel must be enabled.\n'
                     '  Solution: call set_enable(channel= , enable=1)')
-            command = bytes([0x40, 0x06, 0x01, set_val, chan, 0x01])
-            self.write(command)
+                return False
+            command = bytes([0x40, 0x06, 0x01, loop, chan, 0x01])
+            self._send_command(command)
             time.sleep(self.DELAY)
             return True
         except Exception as e:
             self.report_error(f"Error: {e}")
-            self._check_for_reboot_()
+            self._check_for_reboot()
             return False
 
-    def get_loop(self, channel: int = 0):
+    def get_loop(self, channel: int = 0) -> Union[int, Tuple[int, int]]:
         """
             Gathers the current state of a channels loop
             channel: (int) 1 or 2
@@ -750,54 +688,60 @@ class PPC102_Coms(HardwareMotionBase):
                                     4 Closed Loop Smooth
             **MGMSG_PZ_GET_POSCONTROLMODE**(41 06 Chan_Ident 00 d s)**
         """
+        # pylint: disable=too-many-return-statements
         # Check if socket is open
-        if not self.sock:
-            raise RuntimeError("Socket is not connected.")
+        if not self.is_connected():
+            self.report_error("Device is not connected")
+            return -1
         try:
             # Validate channel
             if channel == 0:
                 # Construct command: [0x41, 0x06, 0x01, 0x00, chan, 0x01]
                 command = bytes([0x41, 0x06, 0x01, 0x00, 0x21, 0x01])
-                self.write(command)
+                self._send_command(command)
                 time.sleep(self.DELAY)
-                ch1 = self.read_buff()
+                ch1 = self._read_reply()
                 ch1_state = ch1[3]
                 if len(ch1) != 6:
-                    raise BufferError("Invalid number of bytes received")
+                    self.report_error("Invalid number of bytes received")
+                    return -1, -1
 
                 command = bytes([0x41, 0x06, 0x01, 0x00, 0x22, 0x01])
-                self.write(command)
+                self._send_command(command)
                 time.sleep(self.DELAY)
-                ch2 = self.read_buff()
+                ch2 = self._read_reply()
                 ch2_state = ch2[3]
                 if len(ch2) != 6:
-                    raise BufferError("Invalid number of bytes received")
+                    self.report_error("Invalid number of bytes received")
+                    return -1, -1
 
-                # retrun loop state
+                # return loop state
                 return int(ch1_state[2:],16), int(ch2_state[2:],16)
             if channel not in (1, 2):
-                raise ValueError("Channel must be 1 or 2")
+                self.report_error("Channel must be 1 or 2")
+                return -1
 
             chan = 0x20 + channel  # '2' + channel, as hex
 
             # Construct command: [0x41, 0x06, 0x01, 0x00, chan, 0x01]
             command = bytes([0x41, 0x06, 0x01, 0x00, chan, 0x01])
-            self.write(command)
+            self._send_command(command)
             time.sleep(self.DELAY)
 
-            loop_status = self.read_buff()
+            loop_status = self._read_reply()
             loop_state = loop_status[3]
             if len(loop_status) != 6:
-                raise BufferError("Invalid number of bytes received")
+                self.report_error("Invalid number of bytes received")
+                return -1
 
             # return loop state
             return int(loop_state[2:],16)
         except Exception as e:
             self.report_error(f"Error: {e}")
-            self._check_for_reboot_()
-            return None
+            self._check_for_reboot()
+            return -1
 
-    def are_loops_closed(self, channel: int = 0):
+    def is_loop_closed(self, channel: int = 0) -> bool:
         """
             Uses the get_loop function that returns an int to return a
             boolean for the state of the loops
@@ -811,8 +755,8 @@ class PPC102_Coms(HardwareMotionBase):
         """
         loop_state = self.get_loop(channel)
         if isinstance(loop_state, tuple):
-            return loop_state[0] == 2 and loop_state[1] == 2
-        return loop_state == 2
+            return loop_state[0] == self.CLOSED_LOOP and loop_state[1] == self.CLOSED_LOOP
+        return loop_state == self.CLOSED_LOOP
 
     def set_output_volts(self, channel: int = 1, volts:int = 0):
         """
@@ -825,23 +769,28 @@ class PPC102_Coms(HardwareMotionBase):
             **MGMSG_PZ_SET_OUTPUTVOLTS**(43 06 04 00 d s Chan_Ident(x 2 bytes)
                                                                 Volts(x 2 bytes))**
         """
-        if not self.sock:
-            raise RuntimeError("Socket is not connected.")
+        # pylint: disable=too-many-return-statements
+        if not self.is_connected():
+            self.report_error("Device is not connected")
+            return False
         try:
             # Validate channel
             if channel not in (1, 2):
-                raise ValueError("Channel must be 1 or 2")
+                self.report_error("Channel must be 1 or 2")
+                return False
 
             destination = (0x20 + channel) | 0x80  # '2' + channel, as hex
 
             # Check if channel is enabled
             if self.get_enable(channel) == self.CHAN_DISABLED:
-                raise PermissionError('Channel Must Be enabled\n' +
-                    '  solution: call set_enable(channel= , enable=1)')     
+                self.report_error('Channel Must Be enabled\n' +
+                    '  solution: call set_enable(channel= , enable=1)')
+                return False
 
             # Check if loop is open
             if self.get_loop(channel) == self.CLOSED_LOOP:
-                raise PermissionError("Loops Must be OPEN")
+                self.report_error("Loops Must be OPEN")
+                return False
 
             # Check voltage range
             if -32768 < volts < 32767:
@@ -857,15 +806,15 @@ class PPC102_Coms(HardwareMotionBase):
             command = bytes([0x43, 0x06, 0x04, 0x00,destination,
                 0x01,]) + chan_ident + volts_bytes
 
-            self.write(command)
+            self._send_command(command)
             time.sleep(self.DELAY)
             return True
         except Exception as e:
             self.report_error(f"Error: {e}")
-            self._check_for_reboot_()
+            self._check_for_reboot()
             return False
 
-    def get_output_volts(self, channel: int = 1):
+    def get_output_volts(self, channel: int = 1) -> Union[int, None]:
         """
             Gathers the current state of a channels voltage
                 -must be in open loop
@@ -874,12 +823,14 @@ class PPC102_Coms(HardwareMotionBase):
             **MGMSG_PZ_GET_OUTPUTVOLTS**(44 6 Chan_Ident 00 d s)**
         """
         # Check if socket is open
-        if not self.sock:
-            raise RuntimeError("Socket is not connected.")
+        if not self.is_connected():
+            self.report_error("Device is not connected")
+            return None
         try:
             # Validate channel
             if channel not in (1, 2):
-                raise ValueError("Channel must be 1 or 2")
+                self.report_error("Channel must be 1 or 2")
+                return None
 
             destination = 0x20 + channel
 
@@ -889,17 +840,19 @@ class PPC102_Coms(HardwareMotionBase):
 
                 # Construct command
                 command = bytes([0x44, 0x06, 0x01, 0x00,destination,0x01 ])
-                self.write(command)
+                self._send_command(command)
             else:
-                raise PermissionError("Loops Must be OPEN and channel must be enabled")
+                self.report_error("Loops Must be OPEN and channel must be enabled")
+                return None
 
             time.sleep(self.DELAY)
 
             # Read response
-            volts = self.read_buff()
+            volts = self._read_reply()
             if len(volts) != 10:
-                raise BufferError("Buffer did not return expected response "
+                self.report_error("Buffer did not return expected response "
                                                             "length (10 bytes)")
+                return None
 
             # Voltage is in bytes 8 and 9 (little endian hex strings like '0xA3', '0x00')
             low_byte = int(volts[8], 16)   # LSB
@@ -912,10 +865,10 @@ class PPC102_Coms(HardwareMotionBase):
             return voltage_raw
         except Exception as e:
             self.report_error(f"Error: {e}")
-            self._check_for_reboot_()
+            self._check_for_reboot()
             return None
 
-    def set_position(self, channel: int = 1, pos:float = 0.00):
+    def set_pos(self, channel: int = 1, pos:float = 0.00) -> bool:  # pylint: disable=W0221
         """
             Sets the position of the stage channel
                 -only settable while in closed loop
@@ -926,24 +879,29 @@ class PPC102_Coms(HardwareMotionBase):
             **MGMSG_PZ_SET_OUTPUTPOS**(46 06 04 00 d s Chan_Ident( x 2 bytes)
                                                                 Pos( x 2 bytes))**
         """
+        # pylint: disable=too-many-return-statements
         # Check if socket is open
-        if not self.sock:
-            raise RuntimeError("Socket is not connected.")
+        if not self.is_connected():
+            self.report_error("Device is not connected")
+            return False
         try:
             # Validate channel
             if channel not in (1, 2):
-                raise ValueError("Channel must be 1 or 2")
+                self.report_error("Channel must be 1 or 2")
+                return False
 
             destination = (0x20 + channel) | 0x80
 
             # Check for enable, set enable if needed
             if self.get_enable(channel) == self.CHAN_DISABLED:
-                raise PermissionError('Channel Must Be enabled\n' +
-                    '  solution: call set_enable(channel= , enable=1)')     
+                self.report_error('Channel Must Be enabled\n' +
+                    '  solution: call set_enable(channel= , enable=1)')
+                return False
 
             #check for loop state
             if self.get_loop(channel) == self.OPEN_LOOP:
-                raise PermissionError("Loops Must be Closed")
+                self.report_error("Loops Must be Closed")
+                return False
 
             #Check for valid inputs
             converted_pos = int(round((pos + 10)/20*32767))
@@ -957,15 +915,15 @@ class PPC102_Coms(HardwareMotionBase):
             #Write command
             command = bytes([0x46, 0x06, 0x04, 0x00,destination, 0x01,
                 0x01, 0x00,pos_bytes[0], pos_bytes[1] ])
-            self.write(command)
+            self._send_command(command)
             time.sleep(self.DELAY)
             return True
         except Exception as e:
             self.report_error(f"Error: {e}")
-            self._check_for_reboot_()
+            self._check_for_reboot()
             return False
 
-    def get_position(self, channel: int = 1):
+    def get_pos(self, channel: int = 1) -> Union[float, None]:  # pylint: disable=W0221
         """
             Gets Positional Value of an axis of a stage
                 -can only read positions while in closed loop
@@ -976,13 +934,15 @@ class PPC102_Coms(HardwareMotionBase):
             **MGMSG_PZ_REQ_OUTPUTPOS**(47 06 Chan_Ident 00 d s)**
         """
         # Check if socket is open
-        if not self.sock:
-            raise RuntimeError("Socket is not connected.")
+        if not self.is_connected():
+            self.report_error("Device is not connected")
+            return None
 
         try:
             # Validate channel
             if channel not in (1, 2):
-                raise ValueError("Channel must be 1 or 2")
+                self.report_error("Channel must be 1 or 2")
+                return None
 
             destination = 0x20 + channel
 
@@ -990,17 +950,19 @@ class PPC102_Coms(HardwareMotionBase):
             if (self.get_loop(channel) == self.CLOSED_LOOP and
                     self.get_enable(channel) == self.CHAN_ENABLED):
                 command = bytes([0x47, 0x06, 0x01, 0x00,destination, 0x01])
-                self.write(command) #REQ
+                self._send_command(command) #REQ
             else:
-                raise PermissionError("Loops Must be Closed and channel must be "
+                self.report_error("Loops Must be Closed and channel must be "
                                                                     "enabled")
+                return None
 
-            time.sleep(self.DELAY)  # Wait Delay time for write
+            time.sleep(self.DELAY)  # Wait Delay time for _send_command
 
             #returns printed state of Channel and Enable
-            pos = self.read_buff()
+            pos = self._read_reply()
             if len(pos) == 0:
-                raise BufferError("Buffer empty when expecting response")
+                self.report_error("Buffer empty when expecting response")
+                return None
 
             #Return Positional Value, 2hex or the positional value in int(bytes 8 and 9)
             # Convert hex string to bytes and parse little-endian unsigned int
@@ -1011,15 +973,28 @@ class PPC102_Coms(HardwareMotionBase):
             #Convert for user readability
             if position > 32767:
                 position =  32767 - position
-            mRad_pos = (position / 32767) * 20 - 10
+            mrad_pos = (position / 32767) * 20 - 10
 
-            return mRad_pos
+            return mrad_pos
         except Exception as e:
             self.report_error(f"Error: {e}")
-            self._check_for_reboot_()
+            self._check_for_reboot()
             return None
 
-    def get_max_travel(self, channel: int = 1):
+    def get_limits(self) -> Union[Dict[str, Tuple[float, float]], None]:
+        """
+        Get the limits for each channel
+        """
+        channels = (1, 2)
+        ret = {}
+        for channel in channels:
+            if self.get_enable(channel) == self.CHAN_ENABLED:
+                max_travel = self.get_max_travel(channel)
+                if max_travel:
+                    ret[str(channel)] = (0., float(max_travel))
+        return ret
+
+    def get_max_travel(self, channel: int = 1) -> Union[int, None]:
         """
             In the case of actuators with built-in position sensing, the
                 Piezoelectric Control Unit can detect the range of travel of the
@@ -1036,37 +1011,39 @@ class PPC102_Coms(HardwareMotionBase):
             **MGMSG_PZ_REQ_MAXTRAVEL**(50 06 Chan_Ident 00 d s)**
         """
         # Check if socket is open
-        if not self.sock:
-            raise RuntimeError("Socket is not connected.")
+        if not self.is_connected():
+            self.report_error("Device is not connected")
+            return None
         try:
             # Validate channel
             if channel not in (1, 2):
-                raise ValueError("Channel must be 1 or 2")
+                self.report_error("Channel must be 1 or 2")
+                return None
 
             destination = 0x20 + channel
 
             # Send Req
             command = bytes([0x50, 0x06, 0x01, 0x00,destination, 0x01])
-            self.write(command)  # REQ
+            self._send_command(command)  # REQ
 
-            time.sleep(self.DELAY)  # Wait Delay time for write
+            time.sleep(self.DELAY)  # Wait Delay time for _send_command
 
             #returns printed state of Channel and Enable
-            trav = self.read_buff()
+            trav = self._read_reply()
             if len(trav) == 0:
-                raise BufferError("Buffer empty when expecting response")
+                self.report_error("Buffer empty when expecting response")
 
-            #Return travitional Value, 2hex or the travitional value in int(bytes 8 and 9)
+            #Return travel Value, 2hex or the travel value in int(bytes 8 and 9)
             byte1 = int(trav[8], 16)
             byte2 = int(trav[9], 16)
-            hexVal = byte2 << 8 | byte1
-            return hexVal
+            hex_val = byte2 << 8 | byte1
+            return hex_val
         except Exception as e:
             self.report_error(f"Error: {e}")
-            self._check_for_reboot_()
+            self._check_for_reboot()
             return None
 
-    def get_status_bits(self, channel: int = 1):
+    def get_status_bits(self, channel: int = 1) -> Union[Dict[str, bool], None]:
         """
             Returns a number of status flags pertaining to the operation of the
                 piezo controller channel specified in the Chan Ident parameter.
@@ -1078,28 +1055,31 @@ class PPC102_Coms(HardwareMotionBase):
             Returns: Status Bytes 4 hex values
             **MGMSG_PZ_REQ_PZSTATUSBITS**(5B 06 Chan_Ident 00 d s)**
 
-            NOTE::The Bit status comes from pg.204 of thor labs APT Coms documentation
+            NOTE::The Bit status comes from pg.204 of thor labs APT Comms documentation
 
         """
         # Check if socket is open
-        if not self.sock:
-            raise RuntimeError("Socket is not connected.")
+        if not self.is_connected():
+            self.report_error("Device is not connected")
+            return None
         try:
             # Validate channel
             if channel not in (1, 2):
-                raise ValueError("Channel must be 1 or 2")
+                self.report_error("Channel must be 1 or 2")
+                return None
 
             destination = 0x20 + channel
 
             # Send
             command = bytes([0x5B, 0x06, 0x01, 0x00,destination, 0x01])
-            self.write(command) #REQ
+            self._send_command(command) #REQ
 
-            time.sleep(self.DELAY)  # Wait Delay time for write
+            time.sleep(self.DELAY)  # Wait Delay time for _send_command
             #returns printed state of Channel and Enable
-            status = self.read_buff()
+            status = self._read_reply()
             if len(status) < 12:
-                raise BufferError("Buffer empty when expecting response")
+                self.report_error("Buffer empty when expecting response")
+                return None
 
             # Collect status bytes 8 through 11 (LSB to MSB)
             status_bytes = bytes(int(b, 16) for b in status[8:12])
@@ -1111,7 +1091,7 @@ class PPC102_Coms(HardwareMotionBase):
             return results
         except Exception as e:
             self.report_error(f"Error: {e}")
-            self._check_for_reboot_()
+            self._check_for_reboot()
             return None
 
     def get_status_update(self, channel: int = 1):
@@ -1128,22 +1108,25 @@ class PPC102_Coms(HardwareMotionBase):
             **MGMSG_PZ_REQ_PZSTATUSUPDATE**(60 06 Chan_Ident 00 d s)**
         """
         # Check if socket is open
-        if not self.sock:
-            raise RuntimeError("Socket is not connected.")
+        if not self.is_connected():
+            self.report_error("Device is not connected")
+            return None
         try:
             # Validate channel
             if channel not in (1, 2):
-                raise ValueError("Channel must be 1 or 2")
+                self.report_error("Channel must be 1 or 2")
+                return None
 
             destination = 0x20 + channel
 
             command = bytes([0x60, 0x06, 0x01, 0x00,destination, 0x01])
-            self.write(command) #REQ
-            time.sleep(self.DELAY)  # Wait Delay time for write
+            self._send_command(command) #REQ
+            time.sleep(self.DELAY)  # Wait Delay time for _send_command
             #returns printed state of Channel and Enable
-            status = self.read_buff()
+            status = self._read_reply()
             if len(status) < 16:
-                raise BufferError("Buffer empty when expecting response")
+                self.report_error("Buffer empty when expecting response")
+                return None
 
             volt_bytes = bytes(int(b, 16) for b in status[8:10])
             pos_bytes  = bytes(int(b, 16) for b in status[10:12])
@@ -1154,20 +1137,19 @@ class PPC102_Coms(HardwareMotionBase):
             #Convert for user readability
             if position > 32767:
                 position =  32767 - position
-            mRad_pos = (position / 32767) * 20 - 10
+            mrad_pos = (position / 32767) * 20 - 10
             flags = self._interpret_bit_flags(stat_bytes)
-            #flags = self.interpret_bit_flags(stat_bytes)
 
             self.report_info(f"Voltage: {voltage}")
-            self.report_info(f"Position: {mRad_pos}")
+            self.report_info(f"Position: {mrad_pos}")
 
-            return voltage, mRad_pos, flags
+            return voltage, mrad_pos, flags
         except Exception as e:
             self.report_error(f"Error: {e}")
-            self._check_for_reboot_()
+            self._check_for_reboot()
             return None
 
-    def set_max_output_voltage(self, channel: int = 1, limit:int = 150):
+    def set_max_output_voltage(self, channel: int = 1, limit:int = 150) -> bool:
         """
             The piezo actuator connected to the unit has a specific maximum
                 operating voltage range: 75, 100 or 150 V. This function sets the
@@ -1180,12 +1162,14 @@ class PPC102_Coms(HardwareMotionBase):
                                                                         Flags(x2bytes))**
         """
         # Check if socket is open
-        if not self.sock:
-            raise RuntimeError("Socket is not connected.")
+        if not self.is_connected():
+            self.report_error("Device is not connected")
+            return False
         try:
             #Check for enable, set enable if needed
             if channel not in (1, 2):
-                raise ValueError("Channel must be 1 or 2")
+                self.report_error("Channel must be 1 or 2")
+                return False
 
             #Convert User friendly volt units to controller expected decavolt units
             limit = int(limit * 10)
@@ -1200,18 +1184,19 @@ class PPC102_Coms(HardwareMotionBase):
                 volt_lsb = int(hex_val[2:], 16)
                 volt_msb = int(hex_val[:2], 16)
             else:
-                raise ValueError('Voltage out of Range')
+                self.report_error('Voltage out of Range')
+                return False
 
-            #Format and write commad
+            #Format and _send_command commad
             command = bytes([
                 0x80, 0x06, 0x06, 0x00,destination, 0x01, 0x01, 0x00,
                 volt_lsb, volt_msb,0x00, 0x00])
-            self.write(command)
+            self._send_command(command)
             time.sleep(self.DELAY)
             return True
         except Exception as e:
             self.report_error(f"Error: {e}")
-            self._check_for_reboot_()
+            self._check_for_reboot()
             return False
 
     def get_max_output_voltage(self, channel: int = 1):
@@ -1223,22 +1208,25 @@ class PPC102_Coms(HardwareMotionBase):
             **MGMSG_PZ_GET_OUTPUTMAXVOLTS**(81 06 Chan_Ident 00 d s)**
         """
         # Check if socket is open
-        if not self.sock:
-            raise RuntimeError("Socket is not connected.")
+        if not self.is_connected():
+            self.report_error("Device is not connected")
+            return None
         try:
             # Validate channel
             if channel not in (1, 2):
-                raise ValueError("Channel must be 1 or 2")
+                self.report_error("Channel must be 1 or 2")
+                return None
 
             destination = 0x20 + channel
 
             #Send command for reqOUTPUTMAXVOLTS
             command = bytes([0x81, 0x06, 0x01, 0x00,destination, 0x01])
-            self.write(command)
+            self._send_command(command)
             time.sleep(self.DELAY)
-            msg = self.read_buff()
+            msg = self._read_reply()
             if len(msg) == 0:
-                raise BufferError("Buffer empty when expecting response")
+                self.report_error("Buffer empty when expecting response")
+                return None
             byte1 = int(msg[8], 16)
             byte2 = int(msg[9], 16)
             max_volts = byte2 << 8 | byte1
@@ -1246,12 +1234,12 @@ class PPC102_Coms(HardwareMotionBase):
             return max_volts
         except Exception as e:
             self.report_error(f"Error: {e}")
-            self._check_for_reboot_()
+            self._check_for_reboot()
             return None
 
-    def _set_ppc_PIDCONSTS(self, channel: int = 1, p_const: float = 900.0,
+    def _set_ppc_pidconsts(self, channel: int = 1, p_const: float = 900.0,
                            i_const: float = 800.0, d_const: float = 90.0,
-                           dfc_const: float = 1000.0, derivFilter: bool = True):
+                           dfc_const: float = 1000.0, deriv_filter: bool = True) -> bool:
         """
             When operating in Closed Loop mode, the proportional, integral and
                 derivative (PID) constants can be used to fine tune the behaviour of
@@ -1271,7 +1259,7 @@ class PPC102_Coms(HardwareMotionBase):
             i_const: float 0-10000
             d_const: float 0-10000
             dfc_const: float 10000
-            derivFilter: True=ON False=OFF
+            deriv_filter: True=ON False=OFF
             Returns: True or False based on successful com send
             **MGMSG_PZ_SET_PPC_PIDCONSTS**(90 06 0C 00 d s Chan_Ident(x2bytes)
                                             p_const(x2bytes) i_const(x2bytes)
@@ -1283,8 +1271,9 @@ class PPC102_Coms(HardwareMotionBase):
         raise NotImplementedError("MGMSG_PZ_SET_PPC_PIDCONSTS: Implemented but "
                                                                     "not tested")
         #check Connection
-        if not self.sock:
-            raise RuntimeError("Socket is not connected.")
+        if not self.is_connected():
+            self.report_error("Device is not connected")
+            return False
 
         try:
             if 0 < channel < 3:
@@ -1301,7 +1290,7 @@ class PPC102_Coms(HardwareMotionBase):
             i_bytes = int(i_const).to_bytes(2, byteorder='little')
             d_bytes = int(d_const).to_bytes(2, byteorder='little')
             dfc_bytes = int(dfc_const).to_bytes(2, byteorder='little')
-            filter_flag = (1 if derivFilter else 2).to_bytes(2, byteorder='little')
+            filter_flag = (1 if deriv_filter else 2).to_bytes(2, byteorder='little')
 
             # Header: 90 06 0C 00 d s
             # Assuming destination is generic device 0xD0 and source is 0x01
@@ -1309,7 +1298,7 @@ class PPC102_Coms(HardwareMotionBase):
             data = chan_ident + p_bytes + i_bytes + d_bytes + dfc_bytes + filter_flag
 
             packet = header + data
-            self.write(packet)
+            self._send_command(packet)
             time.sleep(self.DELAY)
 
             self.report_info(f"PID constants sent: P={p_const}, "
@@ -1318,10 +1307,10 @@ class PPC102_Coms(HardwareMotionBase):
             return True
         except Exception as e:
             self.report_error(f"Error in set_pid_consts: {e}")
-            self._check_for_reboot_()
+            self._check_for_reboot()
             return False
 
-    def _get_ppc_PIDCONSTS(self, channel:int = 1):
+    def _get_ppc_pidconsts(self, channel:int = 1) -> Union[Dict[str, int], None]:
         """
             Gets current state values based on description from set
             channel: (int) 1 or 2
@@ -1334,8 +1323,9 @@ class PPC102_Coms(HardwareMotionBase):
         raise NotImplementedError("MGMSG_PZ_GET_PPC_PIDCONSTS: "
                                             "Parseing seems to be Incorrect")
         # check connection
-        if not self.sock:
-            raise RuntimeError("Socket is not connected.")
+        if not self.is_connected():
+            self.report_error("Device is not connected")
+            return None
 
         try:
             if 0 < channel < 3:
@@ -1347,10 +1337,10 @@ class PPC102_Coms(HardwareMotionBase):
 
             # Header for GET command: 91 06 + ChanIdent + 00 + d + s
             header = bytes([0x91, 0x06]) + chan_ident + bytes([0x00, destination, 0x01])
-            self.write(header)
+            self._send_command(header)
             time.sleep(self.DELAY)
 
-            response = self.read_buff()
+            response = self._read_reply()
             #Make into bytes for easier parsing
             response_bytes = bytes([int(b, 16) for b in response])
 
@@ -1360,7 +1350,7 @@ class PPC102_Coms(HardwareMotionBase):
             d_const = int.from_bytes(response_bytes[12:14], byteorder='little')
             dfc_const = int.from_bytes(response_bytes[14:16], byteorder='little')
             deriv_filter_flag = int.from_bytes(response_bytes[16:18], byteorder='little')
-            deriv_filter = True if deriv_filter_flag == 1 else False
+            deriv_filter = deriv_filter_flag == 1
 
             pid_consts = {
                 'p_const': p_const,
@@ -1375,12 +1365,12 @@ class PPC102_Coms(HardwareMotionBase):
 
         except Exception as e:
             self.report_error(f"Error in get_pid_consts: {e}")
-            self._check_for_reboot_()
+            self._check_for_reboot()
             return None
 
-    def _set_ppc_NOTCHPARAMS(self, channel: int, filterNO: int,
-                          filter_1fc: float, filter_1q: float, notch_filter1_on: bool,
-                          filter_2fc: float, filter_2q: float, notch_filter2_on: bool):
+    def _set_ppc_notchparams(self, channel: int, filterNO: int,
+                             filter_1fc: float, filter_1q: float, notch_filter1_on: bool,
+                             filter_2fc: float, filter_2q: float, notch_filter2_on: bool) -> bool:
         """
             Due to their construction, most actuators are prone to mechanical
                 resonance at well-defined frequencies. The underlying reason is that
@@ -1412,20 +1402,23 @@ class PPC102_Coms(HardwareMotionBase):
             filter_2fc: float  20-500
             filter_2q: float 0.2 100
             notch_filter2_on: word ON or OFF
-            Returns: true or false based on successful com send
+            Returns: True or False based on successful com send
             **MGMSG_PZ_SET_PPC_NOTCHPARAMS**(93 06 10 00 d s (16 byte data packet))**
 
             TODO:: Requires testing
         """
         # Check for connection
-        if not self.sock:
-            raise RuntimeError("Socket is not connected.")
+        if not self.is_connected():
+            self.report_error("Device is not connected")
+            return False
         try:
             #Check Channel and Filter values
             if channel not in [1, 2]:
-                raise ValueError("Channel must be 1 or 2")
+                self.report_error("Channel must be 1 or 2")
+                return False
             if filterNO not in [1, 2, 3]:
-                raise ValueError("Filter number must be 1, 2, or 3")
+                self.report_error("Filter number must be 1, 2, or 3")
+                return False
 
             #Assign values
             destination = (0x20 + channel) | 0x80
@@ -1453,7 +1446,7 @@ class PPC102_Coms(HardwareMotionBase):
             datapacket = header + package
 
             #Write to controler and log to logger
-            self.write(datapacket)
+            self._send_command(datapacket)
             time.sleep(self.DELAY)
 
             self.report_info(f"Set NotchParams CH{channel}: F1({filter_1fc}"
@@ -1463,10 +1456,10 @@ class PPC102_Coms(HardwareMotionBase):
 
         except Exception as e:
             self.report_error(f"Error in set_notch_params: {e}")
-            self._check_for_reboot_()
+            self._check_for_reboot()
             return False
 
-    def _get_ppc_NOTCHPARAMS(self, channel: int = 1):
+    def _get_ppc_notchparams(self, channel: int = 1) -> Union[Dict, None]:
         """
             Gets current state values based on description from set
             channel: (int) 1 or 2
@@ -1474,28 +1467,30 @@ class PPC102_Coms(HardwareMotionBase):
             **MGMSG_PZ_GET_PPC_NOTCHPARAMS**(95 06 Chan_Ident 00 d s )**
         """
         #Check Connection
-        if not self.sock:
-            raise RuntimeError("Socket is not connected.")
+        if not self.is_connected():
+            self.report_error("Device is not connected")
+            return None
         try:
             #Check Channel Validity
             if channel not in [1, 2]:
-                raise ValueError("Channel must be 1 or 2")
+                self.report_error("Channel must be 1 or 2")
+                return None
 
-            #Creaste and write request header
+            #Creaste and _send_command request header
             destination = 0x20 + channel
             chan_ident = (1).to_bytes(1, byteorder='little')
 
             header = bytes([0x94, 0x06]) + chan_ident + bytes([0x00, destination, 0x01])
-            self.write(header)
+            self._send_command(header)
             time.sleep(self.DELAY)
 
             # Expecting 6-byte header + 16-byte data = 22 bytes total
-            response = self.read_buff()
+            response = self._read_reply()
             #Make into bytes for easier parsing
             response_bytes = bytes([int(b, 16) for b in response])
 
             # Parse fields
-            filterNO = int.from_bytes(response_bytes[8:10], 'little')
+            filter_no = int.from_bytes(response_bytes[8:10], 'little')
             filter_1fc = struct.unpack('<f', response_bytes[10:14])[0]
             filter_1q = struct.unpack('<f', response_bytes[14:18])[0]
             notch1_on = int.from_bytes(response_bytes[18:20], 'little') == 1
@@ -1505,7 +1500,7 @@ class PPC102_Coms(HardwareMotionBase):
 
             #Package results
             result = {
-                'filterNO': filterNO,
+                'filterNO': filter_no,
                 'filter_1fc': filter_1fc,
                 'filter_1q': filter_1q,
                 'notch_filter1_on': notch1_on,
@@ -1520,91 +1515,31 @@ class PPC102_Coms(HardwareMotionBase):
 
         except Exception as e:
             self.report_error(f"Error in get_notch_params: {e}")
-            self._check_for_reboot_()
+            self._check_for_reboot()
             return None
 
-    def _set_ppc_IOSETTINGS(self, channel: int = 1, cntl_src:int = 3,
-            monitor_opsig:int = 2, monitor_opbw:int = 1, feedback_src:int = 1,
-            fp_brightness:int = 2, reserved=0):
-        """
-            This message is used to set various input and output parameter
-                values associated with the rear panel BNC IO connectors.
-            channel: (int) 1 or 2
-            cntl_src: int 1,2,3,4
-            monitor_opsig: int 1,2,3
-            monitor_opbw: int 1,2
-            feedback_src:int 1,2
-            fp_brightness:int 1,2,3
-            reserved: reserved
-            Returns: true or false based on successful com send
-            **MGMSG_PZ_SET_PPC_IOSETTINGS**(96 06 0E 00 d s (14 byte data packet))**
-
-            TODO:: Requires Testing
-        """
-        raise NotImplementedError("MGMSG_PPC_IOSETTINGS: Has been implemented but not tested yet")
-        if not self.sock:
-            raise RuntimeError("Socket is not connected.")
-        try:
-            #Check Channel Validity
-            if channel not in [1, 2]:
-                raise ValueError("Channel must be 1 or 2")
-            destination = (0x20 + channel) | 0x80
-
-            #Create values from inputs
-            chan_ident = (1).to_bytes(2, 'little')
-            cntl_src_bytes = cntl_src.to_bytes(2, 'little')
-            monitor_opsig_bytes = monitor_opsig.to_bytes(2, 'little')
-            monitor_opbw_bytes = monitor_opbw.to_bytes(2, 'little')
-            feedback_src_bytes = feedback_src.to_bytes(2, 'little')
-            fp_brightness_bytes = fp_brightness.to_bytes(2, 'little')
-            reserved_bytes = reserved.to_bytes(2, 'little')
-
-            #Make Package
-            package = (
-                chan_ident +
-                cntl_src_bytes +
-                monitor_opsig_bytes +
-                monitor_opbw_bytes +
-                feedback_src_bytes +
-                fp_brightness_bytes +
-                reserved_bytes
-            )
-
-            # Connect Header and write
-            header = bytes([0x96, 0x06, 0x0E, 0x00, destination, 0x01])
-            datapacket = header + package
-            self.write(datapacket)
-            self.report_info(
-                        f"Set IOSettings CH{channel}: "
-                        f"ControlSrc={cntl_src}, MonitorOutSig={monitor_opsig}, MonitorOutBW={monitor_opbw}, "
-                        f"FeedbackSrc={feedback_src}, FPBrightness={fp_brightness}, Reserved={reserved}"
-                    )
-            return True
-        except Exception as e:
-            self.report_error(f"Error in set_ppc_IOSETTINGS: {e}")
-            self._check_for_reboot_()
-            return False
-
-    def _get_ppc_IOSETTINGS(self, channel: int = 1):
+    def _get_ppc_iosettings(self, channel: int = 1) -> Union[Dict, None]:
         """
             Gets current state values based on description from set
             channel: (int) 1 or 2
             Returns: PID constants in the same format as the set
             **MGMSG_PZ_GET_PPC_IOSETTINGS**(97 06 01 00 d s )**
         """
-        if not self.sock:
-            raise RuntimeError("Socket is not connected.")
+        if not self.is_connected():
+            self.report_error("Device is not connected")
+            return None
         try:
             #Check Channel Validity
             if channel not in [1, 2]:
-                raise ValueError("Channel must be 1 or 2")
+                self.report_error("Channel must be 1 or 2")
+                return None
             destination = 0x20 + channel
-            # Connect Header and write
+            # Connect Header and _send_command
             header = bytes([0x97, 0x06, 0x01, 0x00, destination, 0x01])
-            self.write(header)
+            self._send_command(header)
 
             #Read and parse
-            res = self.read_buff()
+            res = self._read_reply()
             if res is None:
                 return None
             def parse_word(lo_index):
@@ -1624,10 +1559,10 @@ class PPC102_Coms(HardwareMotionBase):
                     }
         except Exception as e:
             self.report_error(f"Error in set_ppc_IOSETTINGS: {e}")
-            self._check_for_reboot_()
+            self._check_for_reboot()
             return None
 
-    # def _set_ppc_EEPROMPARAMS(self, channel, msg_id):
+    def _set_ppc_eepromparams(self, channel, msg_id):
         """
             Used to save the parameter settings for the specified message.
                 These settings may have been altered either through the various
@@ -1640,6 +1575,13 @@ class PPC102_Coms(HardwareMotionBase):
             **MGMSG_PZ_SET_PPC_NOTCHPARAMS**(96 06 0E 00 d s (14 byte data packet))**
 
             TODO:: implement
-
         """
-        # return NotImplemented
+        return NotImplemented
+
+    def home(self) -> bool:
+        """ Home the device """
+        return True
+
+    def is_homed(self) -> bool:
+        """ Is the device homed"""
+        return True
