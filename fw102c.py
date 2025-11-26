@@ -272,7 +272,12 @@ class FilterWheelController(HardwareMotionBase):
         if not self.initialized:
             self.initialize()
 
-        target = int(target)
+        try:
+            target = int(target)
+        except ValueError:
+            self.report_error(f"invalid target position: {target}")
+            return False
+
         if self.limits["1"][0] <= target <= self.limits["1"][1]:
             command = f"pos={target:d}"
 
