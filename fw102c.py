@@ -24,6 +24,8 @@ class FilterWheelController(HardwareMotionBase):
         self.lock = threading.Lock()
         self.socket = None
 
+        self.limits = {}
+
         #initialize Logging through Harware Base Class
         super().__init__(log=log,logfile=logfile)
 
@@ -117,6 +119,10 @@ class FilterWheelController(HardwareMotionBase):
 
         if save:
             self._send_command('save')
+
+        limits = self.get_limits()
+        for key, value in limits.items():
+            self.limits[key] = value
 
         self.initialized = True
 
@@ -236,6 +242,18 @@ class FilterWheelController(HardwareMotionBase):
 
         return None
 
+    def _set_pcount(self, pcount:int):
+        """ Set the pcount of the filter wheel.
+        :param pcount: Int, pcount to set.
+        """
+        self._send_command(f'pcount={pcount}')
+        time.sleep(0.1)
+        reply = self._send_command("pcount?")
+        if reply != pcount:
+            self.report_error(f"pcount not set: {pcount}")
+        else:
+            self.report_info(f"pcount set: {pcount}")
+
     def get_pos(self):  # pylint: disable=W0221
         """ Get the current position from the controller."""
         return self._send_command('pos?')
@@ -249,19 +267,22 @@ class FilterWheelController(HardwareMotionBase):
         if not self.initialized:
             self.initialize()
 
-        target = int(target)
-        command = f"pos={target:d}"
+        if self.limits["1"][0] >= target <= self.limits["1"][1]:
+            target = int(target)
+            command = f"pos={target:d}"
 
-        response = self._send_command(command)
+            response = self._send_command(command)
 
-        if response is not None:
-            raise RuntimeError(f"error response to command: {response}")
+            if response is not None:
+                raise RuntimeError(f"error response to command: {response}")
 
-        current = int(self.get_pos())
+            current = int(self.get_pos())
 
-        if current != target:
-            raise RuntimeError(
-                f"wound up at position {current:d} instead of commanded {target:d}")
+            if current != target:
+                raise RuntimeError(
+                    f"wound up at position {current:d} instead of commanded {target:d}")
+        else:
+            self.report_error(f"target position out of range: {target:d}")
 
     #Required abstract baseclass methods
     def _read_reply(self):
@@ -289,6 +310,7 @@ class FilterWheelController(HardwareMotionBase):
 
     def get_limits(self):
         """Get the limits of the hardware motion device."""
-        return {}
+        reply = self._send_command('pcount?')
+        return {"1": (1, int(reply))}
 
 # end of class Controller
