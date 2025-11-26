@@ -132,8 +132,8 @@ class FilterWheelController(HardwareMotionBase):
         with self.lock:
             try:
                 result = self._issue_command(command)
-                if result is None:
-                    self.report_error(f"Failed to issue command: {command}")
+                if '?' in command and result is None:
+                    self.report_error(f"Failed to get response from command: {command}")
             except Exception as e:
                 self.report_error(f"Error sending command: {command}")
                 raise IOError(f"Failed to issue command: {command}") from e
