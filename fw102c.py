@@ -267,7 +267,7 @@ class FilterWheelController(HardwareMotionBase):
         if not self.initialized:
             self.initialize()
 
-        if self.limits["1"][0] >= target <= self.limits["1"][1]:
+        if self.limits["1"][0] <= target <= self.limits["1"][1]:
             target = int(target)
             command = f"pos={target:d}"
 
