@@ -256,7 +256,11 @@ class FilterWheelController(HardwareMotionBase):
 
     def get_pos(self):  # pylint: disable=W0221
         """ Get the current position from the controller."""
-        return self._send_command('pos?')
+        pos = self._send_command('pos?')
+        if pos is not None:
+            return int(pos)
+        self.report_error("Failed to get position.")
+        return None
 
     def set_pos(self, target):  # pylint: disable=W0221
         """ Move the filter wheel to the target position.
