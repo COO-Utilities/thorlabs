@@ -242,6 +242,18 @@ class FilterWheelController(HardwareMotionBase):
 
         return None
 
+    def _set_pcount(self, pcount:int):
+        """ Set the pcount of the filter wheel.
+        :param pcount: Int, pcount to set.
+        """
+        self._send_command(f'pcount={pcount}')
+        time.sleep(0.1)
+        reply = self._send_command("pcount?")
+        if reply != pcount:
+            self.report_error(f"pcount not set: {pcount}")
+        else:
+            self.report_info(f"pcount set: {pcount}")
+
     def get_pos(self):  # pylint: disable=W0221
         """ Get the current position from the controller."""
         return self._send_command('pos?')
