@@ -127,7 +127,7 @@ class FilterWheelController(HardwareMotionBase):
         self.initialized = True
 
 
-    def _send_command(self, command: str): # pylint: disable=W0221
+    def _send_command(self, command: str) -> Union[str, None]: # pylint: disable=W0221
         """ Wrapper to issue_command(), ensuring the command lock is
             released if an exception occurs.
 
@@ -242,7 +242,7 @@ class FilterWheelController(HardwareMotionBase):
 
         return None
 
-    def _set_pcount(self, pcount:int):
+    def _set_pcount(self, pcount:int) -> bool:
         """ Set the pcount of the filter wheel.
         :param pcount: Int, pcount to set.
         """
@@ -251,10 +251,11 @@ class FilterWheelController(HardwareMotionBase):
         reply = self._send_command("pcount?")
         if reply != pcount:
             self.report_error(f"pcount not set: {pcount}")
-        else:
-            self.report_info(f"pcount set: {pcount}")
+            return False
+        self.report_info(f"pcount set: {pcount}")
+        return True
 
-    def get_pos(self):  # pylint: disable=W0221
+    def get_pos(self) -> Union[int, None]:  # pylint: disable=W0221
         """ Get the current position from the controller."""
         pos = self._send_command('pos?')
         if pos is not None:
@@ -262,7 +263,7 @@ class FilterWheelController(HardwareMotionBase):
         self.report_error("Failed to get position.")
         return None
 
-    def set_pos(self, target):  # pylint: disable=W0221
+    def set_pos(self, target: int) -> bool:  # pylint: disable=W0221
         """ Move the filter wheel to the target position.
 
         :param target: Int, target position to move.
@@ -283,10 +284,13 @@ class FilterWheelController(HardwareMotionBase):
             current = int(self.get_pos())
 
             if current != target:
-                raise RuntimeError(
+                self.report_error(
                     f"wound up at position {current:d} instead of commanded {target:d}")
-        else:
-            self.report_error(f"target position out of range: {target:d}")
+                return False
+            return True
+
+        self.report_error(f"target position out of range: {target:d}")
+        return False
 
     #Required abstract baseclass methods
     def _read_reply(self):
@@ -312,9 +316,12 @@ class FilterWheelController(HardwareMotionBase):
         """Check if the hardware motion device is homed."""
         return True
 
-    def get_limits(self):
+    def get_limits(self) -> Union[dict, None]:
         """Get the limits of the hardware motion device."""
         reply = self._send_command('pcount?')
-        return {"1": (1, int(reply))}
+        if reply is not None:
+            return {"1": (1, int(reply))}
+        self.report_error("Failed to get limits.")
+        return None
 
 # end of class Controller
