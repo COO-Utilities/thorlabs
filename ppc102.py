@@ -220,7 +220,7 @@ class Ppc102Controller(HardwareMotionBase):
         try:
             #Message to query enable state, position and loop state
             enableq = bytes([0x11, 0x02, 0x01, 0x00, 0x21, 0x01])
-            posq = bytes([0x21, 0x06, 0x01, 0x00, 0x21, 0x01])
+            posq = bytes([0x47, 0x06, 0x01, 0x00, 0x21, 0x01])
             loopq = bytes([0x41, 0x06, 0x01, 0x00, 0x21, 0x01])
             #counter for number of failed responses
             message_list = [enableq, posq, loopq]
