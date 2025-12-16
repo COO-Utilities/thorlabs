@@ -133,7 +133,7 @@ class Ppc102Controller(HardwareMotionBase):
             self.report_warning("Already disconnected from device")
             return
         try:
-            self.logger.info("Disconnecting from device")
+            self.report_info("Disconnecting from device")
             if self.sock:
                 self.sock.shutdown(socket.SHUT_RDWR)
                 self.sock.close()
@@ -180,7 +180,7 @@ class Ppc102Controller(HardwareMotionBase):
             #return array of hex values for other functions to Dissect
             res = self.sock.recv(self.buff_size)
             hex_array = [f'0x{byte:02X}' for byte in res]
-            self.logger.debug("Received %s", hex_array)
+            self.report_debug(f"Received {hex_array}")
             return hex_array
         except socket.timeout:
             self.report_error("Read timed out.")
@@ -215,7 +215,7 @@ class Ppc102Controller(HardwareMotionBase):
             NOTE:: Checks for consistent behavior of unhappy state
             Returns: N/A, print statement if reboot needed
         """
-        self.logger.info("Checking for unrecoverable state")
+        self.report_info("Checking for unrecoverable state")
         #Send a set of commands to see if device responds correctly
         try:
             #Message to query enable state, position and loop state

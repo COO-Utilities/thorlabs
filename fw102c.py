@@ -37,12 +37,12 @@ class FilterWheelController(HardwareMotionBase):
             self.socket.close()
             self.socket = None
             if self.logger:
-                self.logger.debug("Disconnected controller")
+                self.report_debug("Disconnected controller")
             self._set_connected (False)
 
         except OSError as e:
             if self.logger:
-                self.logger.error("Disconnection error: %s", e.strerror)
+                self.report_error(f"Disconnection error: {e.strerror}")
             self._set_connected(False)
             self.socket = None
 
@@ -143,7 +143,7 @@ class FilterWheelController(HardwareMotionBase):
             except Exception as e:
                 self.report_error(f"Error sending command: {command}")
                 raise IOError(f"Failed to issue command: {command}") from e
-            self.logger.debug("Command sent to filter wheel")
+            self.report_debug("Command sent to filter wheel")
 
         return result
 
@@ -163,7 +163,7 @@ class FilterWheelController(HardwareMotionBase):
         send_command = f"{command}\r".encode('utf-8')
 
         while retries > 0:
-            self.logger.debug("sending command %s", send_command)
+            self.report_debug(f"sending command {send_command}")
             try:
                 self.socket.send(send_command)
 
@@ -197,7 +197,7 @@ class FilterWheelController(HardwareMotionBase):
             while delimiter not in reply and time.time() - start < timeout:
                 try:
                     reply += self.socket.recv(1024)
-                    self.logger.debug("reply: %s", reply)
+                    self.report_debug(f"reply: {reply}")
                 except OSError as e:
                     if e.errno == ETIMEDOUT:
                         reply = ''
