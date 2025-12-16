@@ -16,7 +16,6 @@ class FilterWheelController(HardwareMotionBase):
     host = ''
     port = 0
 
-    initialized = False
     revision = None
 
     def __init__(self, log: bool = True, logfile: str = __name__.rsplit(".", 1)[-1]):
@@ -81,7 +80,7 @@ class FilterWheelController(HardwareMotionBase):
                     break
             self.socket.setblocking(True)
 
-    def initialize(self):
+    def initialize(self) -> bool:
         """ Initialize the filter wheel. """
 
         save = False
@@ -125,6 +124,7 @@ class FilterWheelController(HardwareMotionBase):
             self.limits[key] = value
 
         self.initialized = True
+        return self.initialized
 
 
     def _send_command(self, command: str) -> Union[str, None]: # pylint: disable=W0221
@@ -269,7 +269,7 @@ class FilterWheelController(HardwareMotionBase):
         :param target: Int, target position to move.
 
         """
-        if not self.initialized:
+        if not self.is_initialized():
             self.initialize()
 
         try:
