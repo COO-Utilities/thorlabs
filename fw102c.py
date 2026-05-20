@@ -22,7 +22,6 @@ class FilterWheelController(HardwareMotionBase):
 
         self.lock = threading.Lock()
         self.socket = None
-        self.initialized = False
 
         self.limits = {}
 
@@ -37,7 +36,7 @@ class FilterWheelController(HardwareMotionBase):
             self.socket.close()
             self.socket = None
             if self.logger:
-                self.report_info("Disconnected controller")
+                self.report_debug("Disconnected controller")
             self._set_connected (False)
 
         except OSError as e:
@@ -144,7 +143,7 @@ class FilterWheelController(HardwareMotionBase):
             except Exception as e:
                 self.report_error(f"Error sending command: {command}")
                 raise IOError(f"Failed to issue command: {command}") from e
-            self.report_info("Command sent to filter wheel")
+            self.report_debug("Command sent to filter wheel")
 
         return result
 
@@ -164,7 +163,7 @@ class FilterWheelController(HardwareMotionBase):
         send_command = f"{command}\r".encode('utf-8')
 
         while retries > 0:
-            self.report_info(f"sending command {send_command}")
+            self.report_debug(f"sending command {send_command}")
             try:
                 self.socket.send(send_command)
 
@@ -198,7 +197,7 @@ class FilterWheelController(HardwareMotionBase):
             while delimiter not in reply and time.time() - start < timeout:
                 try:
                     reply += self.socket.recv(1024)
-                    self.report_info(f"reply: {reply}")
+                    self.report_debug(f"reply: {reply}")
                 except OSError as e:
                     if e.errno == ETIMEDOUT:
                         reply = ''
@@ -270,7 +269,7 @@ class FilterWheelController(HardwareMotionBase):
         :param target: Int, target position to move.
 
         """
-        if not self.initialized:
+        if not self.is_initialized():
             self.initialize()
 
         try:
