@@ -15,6 +15,7 @@ class FilterWheelController(HardwareMotionBase):
     """
     host = ''
     port = 0
+    initialized = False
 
     revision = None
 
@@ -22,7 +23,6 @@ class FilterWheelController(HardwareMotionBase):
 
         self.lock = threading.Lock()
         self.socket = None
-        self.initialized = False
 
         self.limits = {}
 
