@@ -35,7 +35,7 @@ class PhysicalTest(unittest.TestCase):
         time.sleep(.2)
         # Open connection
         self.dev = FilterWheelController(log = self.log)
-        assert self.dev.status is None
+        assert self.dev.status == 0
         self.dev.connect(self.host, self.port)
         time.sleep(.25)
         assert self.dev.connected
@@ -46,7 +46,7 @@ class PhysicalTest(unittest.TestCase):
         # assert self.dev.status == 'disconnected'
         time.sleep(.25)
 
-    def initialize(self):
+    def test_initialize(self):
         """Initialization test"""
         self.dev = FilterWheelController(log = self.log)
         self.dev.connect(self.host, self.port)

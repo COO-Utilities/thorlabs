@@ -20,7 +20,7 @@ class Testppc102Coms(unittest.TestCase):
         """Set up the test case with a mocked socket connection."""
         self.mock_socket = MagicMock()
         mock_socket_obj.return_value = self.mock_socket
-        self.mock_socket.read.return_value = b""
+        self.mock_socket.recv.side_effect = BlockingIOError
         self.controller = Ppc102Controller(log=False)
         self.controller.connect("123.456.789.101", 1234)
         self.controller.sock = self.mock_socket

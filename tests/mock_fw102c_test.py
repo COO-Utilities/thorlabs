@@ -19,24 +19,25 @@ class TestFilterWheelController(unittest.TestCase):
         """Set up the test case with a mocked socket connection."""
         self.mock_socket = MagicMock()
         mock_socket_obj.return_value = self.mock_socket
-        self.mock_socket.read.return_value = b""
+        self.mock_socket.recv.side_effect = BlockingIOError
         self.controller = FilterWheelController(log=False)
         self.controller.connect("123.456.789.101", 1234)
         self.controller.connected = True
 
     def test_get_position(self):
         """Test getting the position of the filter wheel."""
-        with patch.object(self.controller, "command") as mock_command:
+        with patch.object(self.controller, "_send_command") as mock_command:
             self.controller.get_pos()
             mock_command.assert_called_once_with("pos?")
 
     def test_set_position(self):
         """Test setting the position of the filter wheel."""
-        with patch.object(self.controller, "command") as mock_command:
+        with patch.object(self.controller, "_send_command") as mock_command:
             mock_command.return_value = None
             with patch.object(self.controller, "get_pos") as mock_getpos:
                 mock_getpos.return_value = 10
                 self.controller.initialized = True
+                self.controller.limits = {"1": (1, 12)}
                 self.controller.set_pos(target = 10)
                 mock_command.assert_called_once_with("pos=10")
 
