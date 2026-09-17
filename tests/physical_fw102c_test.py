@@ -88,6 +88,28 @@ class PhysicalTest(unittest.TestCase):
         self.dev.disconnect()
         time.sleep(.25)
 
+    ##########################
+    ## Position Sensor LED
+    ##########################
+    def test_light_control(self):
+        """Position sensor LED control test"""
+        self.dev = FilterWheelController(log = self.log)
+        self.dev.connect(self.host, self.port)
+        time.sleep(.25)
+        self.dev.initialize()
+        original = self.dev.get_light()
+        assert original is not None
+        # Toggle, then restore, since every set writes EEPROM
+        self.dev.set_light(not original)
+        time.sleep(.25)
+        assert self.dev.get_light() == (not original)
+        self.dev.set_light(original)
+        time.sleep(.25)
+        assert self.dev.get_light() == original
+        #Close connection
+        self.dev.disconnect()
+        time.sleep(.25)
+
 
 if __name__ == '__main__':
     loader = unittest.TestLoader()
