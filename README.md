@@ -30,6 +30,16 @@ print(controller.get_pos())
 # Move filter wheel to filter 5
 controller.move(5)
 
+# Print position sensor LED mode
+print(controller.get_light())
+
+# Keep the position sensor LED always on
+controller.set_light(True)
+
+# Let the position sensor LED sleep while the wheel is idle to reduce
+# stray light. It is still lit while the wheel moves.
+controller.set_light(False)
+
 # For a comprehensive list of classes and methods, use the help function
 help(fw102c)
 

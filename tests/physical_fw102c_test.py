@@ -35,7 +35,7 @@ class PhysicalTest(unittest.TestCase):
         time.sleep(.2)
         # Open connection
         self.dev = FilterWheelController(log = self.log)
-        assert self.dev.status is None
+        assert self.dev.status == 0
         self.dev.connect(self.host, self.port)
         time.sleep(.25)
         assert self.dev.connected
@@ -46,7 +46,7 @@ class PhysicalTest(unittest.TestCase):
         # assert self.dev.status == 'disconnected'
         time.sleep(.25)
 
-    def initialize(self):
+    def test_initialize(self):
         """Initialization test"""
         self.dev = FilterWheelController(log = self.log)
         self.dev.connect(self.host, self.port)
@@ -84,6 +84,28 @@ class PhysicalTest(unittest.TestCase):
         time.sleep(.25)
         ret = self.dev.get_pos()
         assert ret == 1
+        #Close connection
+        self.dev.disconnect()
+        time.sleep(.25)
+
+    ##########################
+    ## Position Sensor LED
+    ##########################
+    def test_light_control(self):
+        """Position sensor LED control test"""
+        self.dev = FilterWheelController(log = self.log)
+        self.dev.connect(self.host, self.port)
+        time.sleep(.25)
+        self.dev.initialize()
+        original = self.dev.get_light()
+        assert original is not None
+        # Toggle, then restore, since every set writes EEPROM
+        self.dev.set_light(not original)
+        time.sleep(.25)
+        assert self.dev.get_light() == (not original)
+        self.dev.set_light(original)
+        time.sleep(.25)
+        assert self.dev.get_light() == original
         #Close connection
         self.dev.disconnect()
         time.sleep(.25)

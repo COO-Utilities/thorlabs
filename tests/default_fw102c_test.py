@@ -31,7 +31,7 @@ class DefaultTest(unittest.TestCase):
         time.sleep(.2)
         # Open connection
         self.dev = FilterWheelController(log = self.log)
-        assert self.dev.status is None
+        assert self.dev.status == 0
         self.dev.connect(self.host, self.port)
         time.sleep(.25)
         assert self.dev.connected
@@ -42,11 +42,12 @@ class DefaultTest(unittest.TestCase):
         # assert self.dev.status == 'disconnected'
         time.sleep(.25)
 
-    def failed_connect_test(self):
+    def test_failed_connect(self):
         """Negative test: failed connect"""
-        # Use an unreachable host (TEST-NET-1 range, reserved for docs/testing)
-        bad_ip = "192.1.2.123"
-        bad_port = 65535  # usually blocked/unusable
+        # A closed port on loopback refuses at once, so this cannot stall on a
+        # TCP timeout the way an unroutable address would
+        bad_ip = "127.0.0.1"
+        bad_port = 1
 
         self.dev = FilterWheelController(log=self.log)
         self.dev.connect(bad_ip, bad_port)
@@ -56,7 +57,7 @@ class DefaultTest(unittest.TestCase):
         self.dev.disconnect()
         time.sleep(.25)
 
-    def initialize(self):
+    def test_initialize(self):
         """Negative test: initialize"""
         self.dev = FilterWheelController(log = self.log)
         self.dev.connect(self.host, self.port)

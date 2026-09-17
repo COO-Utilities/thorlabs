@@ -19,6 +19,12 @@ class FilterWheelController(HardwareMotionBase):
 
     revision = None
 
+    # sensors=0 sleeps the position sensor LED while the wheel is idle,
+    # sensors=1 keeps it always on
+    SENSORS_IDLE_OFF = 0
+    SENSORS_ALWAYS_ON = 1
+    SENSOR_MODES = {str(SENSORS_IDLE_OFF): False, str(SENSORS_ALWAYS_ON): True}
+
     def __init__(self, log: bool = True, logfile: str = __name__.rsplit(".", 1)[-1]):
 
         self.lock = threading.Lock()
@@ -91,14 +97,9 @@ class FilterWheelController(HardwareMotionBase):
 
         self.revision = self._send_command('*idn?')
 
-        # Turn off the position sensors when the wheel is
-        # idle to mitigate stray light.
+        # Leave the saved sensor mode alone; stray light is an observing choice
 
-        sensors = self._send_command('sensors?')
-
-        if sensors != '0':
-            self._send_command('sensors=0')
-            save = True
+        self.report_info(f"Position sensor LED always on: {self.get_light()}")
 
         # Make sure the wheel is set to move at "high" speed,
         # which takes ~3 seconds to rotate 180 degrees.
@@ -188,6 +189,9 @@ class FilterWheelController(HardwareMotionBase):
                 # The next response will wait
                 # until the filter wheel is
                 # actually in position.
+                timeout = 5
+            elif command == 'save':
+                # Saving blocks until the EEPROM write completes
                 timeout = 5
             else:
                 timeout = 1
@@ -297,6 +301,49 @@ class FilterWheelController(HardwareMotionBase):
 
         self.report_error(f"target position out of range: {target:d}")
         return False
+
+    def get_light(self) -> Union[bool, None]:
+        """ Get the position sensor LED mode.
+
+        :return: True if the LED is always on, False if it turns off while the
+                 wheel is idle, None if the mode could not be read.
+
+        """
+        reply = self._send_command('sensors?')
+
+        if reply in self.SENSOR_MODES:
+            return self.SENSOR_MODES[reply]
+
+        self.report_error(f"Failed to get position sensor LED mode: {reply}")
+        return None
+
+    def set_light(self, on: bool) -> bool:
+        """ Set the position sensor LED mode and save it to the controller.
+
+        The mode is written to EEPROM, so it survives a power cycle. The
+        controller has no always-off mode, because the wheel needs the sensor
+        to index a filter, so the LED is lit while the wheel moves either way.
+
+        :param on: Bool, True keeps the LED always on, False lets it turn off
+                   while the wheel is idle to reduce stray light.
+
+        """
+        mode = self.SENSORS_ALWAYS_ON if on else self.SENSORS_IDLE_OFF
+
+        response = self._send_command(f'sensors={mode:d}')
+
+        if response is not None:
+            raise RuntimeError(f"error response to command: {response}")
+
+        self._send_command('save')
+
+        current = self.get_light()
+
+        if current != on:
+            self.report_error(
+                f"position sensor LED is {current} instead of commanded {on}")
+            return False
+        return True
 
     #Required abstract baseclass methods
     def _read_reply(self):
